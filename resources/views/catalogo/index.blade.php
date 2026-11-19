@@ -1,0 +1,9 @@
+@extends('layouts.app')
+@section('title', 'ASAGUA — Catálogo de cuentas')
+@section('content')
+<div class="topbar"><div><h2>Catálogo de cuentas contables</h2><p class="muted">Consulta de cuentas ordenadas por código.</p></div>@if(auth()->user()->rol === 'Admin')<a class="button" href="{{ route('admin.cuentas.create') }}">＋ Registrar cuenta</a>@endif</div>
+<form method="GET" action="{{ route('catalogo.index') }}" class="actions" style="margin-bottom:18px"><input style="max-width:280px" name="q" value="{{ $search }}" placeholder="Buscar código o nombre…"><select style="max-width:180px" name="estado"><option value="activos" @selected($estado === 'activos')>Activas</option><option value="inactivos" @selected($estado === 'inactivos')>Inactivas</option><option value="todos" @selected($estado === 'todos')>Todas</option></select><button type="submit">Consultar</button></form>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Código</th><th>Nombre</th><th>Tipo</th><th>Nivel</th><th>Padre</th><th>Estado</th>@if(auth()->user()->rol === 'Admin')<th>Acciones</th>@endif</tr></thead><tbody>
+@forelse($cuentas as $cuenta)<tr><td>{{ $cuenta->id_cuenta }}</td><td>{{ $cuenta->codigo_cuenta }}</td><td>{{ $cuenta->nombre_cuenta }}</td><td>{{ $cuenta->tipo_cuenta }}</td><td>{{ $cuenta->nivel }}</td><td>{{ $cuenta->padre?->codigo_cuenta ?? '—' }}</td><td>{{ $cuenta->estado ? 'Activa' : 'Inactiva' }}</td>@if(auth()->user()->rol === 'Admin')<td class="actions"><a class="button" href="{{ route('admin.cuentas.edit', $cuenta) }}">Editar</a><form class="inline" method="POST" action="{{ route('admin.cuentas.destroy', $cuenta) }}">@csrf @method('DELETE')<button class="button warning" type="submit" onclick="return confirm('¿Eliminar esta cuenta?')">Eliminar</button></form></td>@endif</tr>@empty<tr><td colspan="8">No hay cuentas para el filtro seleccionado.</td></tr>@endforelse
+</tbody></table></div><div class="pagination">{{ $cuentas->links() }}</div>
+@endsection

@@ -1,0 +1,10 @@
+[90m= [39m[34;4mApp\Models\User[39;24m {#8711
+    [34mnombre[39m: [32m"[39m[32mUsuario[39m[32m"[39m,
+    [34mapellido[39m: [32m"[39m[32mTemporal[39m[32m"[39m,
+    [34memail[39m: [32m"[39m[32mtemporal@asagua.test[39m[32m"[39m,
+    [34musuario[39m: [32m"[39m[32madmin_temporal[39m[32m"[39m,
+    #[33mpassword[39m: [32m"[39m\$[32m2y[39m\$[32m12[39m\$[32mR8DLZRGquIagI3bnJdyKQeWR05YxHr6oJELjy6wr3kK6/s3V5mLQC[39m[32m"[39m,
+    [34mrol[39m: [32m"[39m[32mAdmin[39m[32m"[39m,
+    [34mactivo[39m: [36mtrue[39m,
+    [34mid_usuario[39m: [35m1[39m,
+  }
