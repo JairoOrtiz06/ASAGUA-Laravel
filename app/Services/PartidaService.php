@@ -122,6 +122,12 @@ class PartidaService
                 ]);
             }
 
+            if ((int) $cuenta->nivel !== 4) {
+                throw ValidationException::withMessages([
+                    "detalles.{$index}.id_cuenta" => 'La cuenta debe ser de nivel 4 (auxiliar).',
+                ]);
+            }
+
             if (trim((string) ($detalle['descripcion'] ?? '')) === '') {
                 $detalles[$index]['descripcion'] = $cuenta->nombre_cuenta;
             }

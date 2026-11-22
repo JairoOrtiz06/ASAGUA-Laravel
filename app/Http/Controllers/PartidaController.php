@@ -27,6 +27,7 @@ class PartidaController extends Controller
     {
         $cuentas = CuentaContable::query()
             ->where('estado', true)
+            ->where('nivel', 4)
             ->orderBy('codigo_cuenta')
             ->get();
 

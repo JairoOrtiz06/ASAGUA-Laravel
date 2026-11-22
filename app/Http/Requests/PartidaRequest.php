@@ -20,7 +20,9 @@ class PartidaRequest extends FormRequest
             'detalles' => ['required', 'array', 'min:1'],
             'detalles.*.id_cuenta' => [
                 'required', 'integer',
-                Rule::exists('tblcuentascontables', 'id_cuenta'),
+                Rule::exists('tblcuentascontables', 'id_cuenta')
+                    ->where('estado', true)
+                    ->where('nivel', 4),
             ],
             'detalles.*.descripcion' => ['nullable', 'string'],
             'detalles.*.debe' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/'],

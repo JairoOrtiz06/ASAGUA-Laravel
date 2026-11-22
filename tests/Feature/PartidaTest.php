@@ -88,13 +88,64 @@ class PartidaTest extends TestCase
         $this->assertDatabaseCount('tbldetalles_partida', 0);
     }
 
+    public function test_partida_form_lists_only_active_auxiliary_accounts(): void
+    {
+        $usuario = User::factory()->create(['rol' => 'Contador']);
+        CuentaContable::create([
+            'codigo_cuenta' => '1101', 'nombre_cuenta' => 'Cuenta agrupadora',
+            'tipo_cuenta' => 'Activo', 'nivel' => 3, 'estado' => true,
+        ]);
+        $auxiliar = CuentaContable::create([
+            'codigo_cuenta' => '110101', 'nombre_cuenta' => 'Caja General',
+            'tipo_cuenta' => 'Activo', 'nivel' => 4, 'estado' => true,
+        ]);
+        CuentaContable::create([
+            'codigo_cuenta' => '110102', 'nombre_cuenta' => 'Caja Inactiva',
+            'tipo_cuenta' => 'Activo', 'nivel' => 4, 'estado' => false,
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('partidas.create'))
+            ->assertOk()
+            ->assertSee($auxiliar->codigo_cuenta.' — '.$auxiliar->nombre_cuenta)
+            ->assertDontSee('Cuenta agrupadora')
+            ->assertDontSee('Caja Inactiva');
+    }
+
+    public function test_grouping_account_cannot_be_registered_as_a_partida_detail(): void
+    {
+        $usuario = User::factory()->create(['rol' => 'Contador']);
+        $agrupadora = CuentaContable::create([
+            'codigo_cuenta' => '1101', 'nombre_cuenta' => 'Cuenta agrupadora',
+            'tipo_cuenta' => 'Activo', 'nivel' => 3, 'estado' => true,
+        ]);
+        $auxiliar = CuentaContable::create([
+            'codigo_cuenta' => '210101', 'nombre_cuenta' => 'Proveedor auxiliar',
+            'tipo_cuenta' => 'Pasivo', 'nivel' => 4, 'estado' => true,
+        ]);
+
+        $this->actingAs($usuario)
+            ->post(route('partidas.store'), [
+                'fecha' => '2026-01-15',
+                'concepto' => 'Intento con cuenta agrupadora',
+                'detalles' => [
+                    ['id_cuenta' => $agrupadora->id_cuenta, 'debe' => '100.00', 'haber' => '0.00'],
+                    ['id_cuenta' => $auxiliar->id_cuenta, 'debe' => '0.00', 'haber' => '100.00'],
+                ],
+            ])
+            ->assertSessionHasErrors('detalles.0.id_cuenta');
+
+        $this->assertDatabaseCount('tblpartidas', 0);
+        $this->assertDatabaseCount('tbldetalles_partida', 0);
+    }
+
     public function test_inactive_account_failure_leaves_no_partial_records(): void
     {
         $usuario = User::factory()->create(['rol' => 'Contador']);
         [$debe, $haber] = $this->cuentasActivas();
         $inactiva = CuentaContable::create([
             'codigo_cuenta' => '9999', 'nombre_cuenta' => 'Cuenta inactiva',
-            'tipo_cuenta' => 'Activo', 'nivel' => 3, 'estado' => false,
+            'tipo_cuenta' => 'Activo', 'nivel' => 4, 'estado' => false,
         ]);
 
         $this->actingAs($usuario)->post(route('partidas.store'), [
@@ -136,11 +187,11 @@ class PartidaTest extends TestCase
         return [
             CuentaContable::create([
                 'codigo_cuenta' => '1101', 'nombre_cuenta' => 'Caja',
-                'tipo_cuenta' => 'Activo', 'nivel' => 3, 'estado' => true,
+                'tipo_cuenta' => 'Activo', 'nivel' => 4, 'estado' => true,
             ]),
             CuentaContable::create([
                 'codigo_cuenta' => '2101', 'nombre_cuenta' => 'Proveedores',
-                'tipo_cuenta' => 'Pasivo', 'nivel' => 3, 'estado' => true,
+                'tipo_cuenta' => 'Pasivo', 'nivel' => 4, 'estado' => true,
             ]),
         ];
     }
