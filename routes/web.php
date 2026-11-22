@@ -12,6 +12,8 @@ use App\Http\Controllers\DocumentoFuenteController;
 use App\Http\Controllers\PartidaController;
 use App\Http\Controllers\LibroContableController;
 use App\Http\Controllers\HojaTrabajoController;
+use App\Http\Controllers\IngenieriaEconomicaController;
+use App\Http\Controllers\PortalController;
 use App\Http\Controllers\ReportePdfController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +29,13 @@ Route::middleware('guest')->group(function (): void {
 Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'redirectByRole'])->name('dashboard');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+
+    Route::middleware('role:Contador')->group(function (): void {
+        Route::get('/portal/contador', [PortalController::class, 'contador'])->name('portal.contador');
+        Route::get('/ingenieria-economica', [IngenieriaEconomicaController::class, 'index'])
+            ->name('ingenieria-economica.index');
+    });
+
     Route::get('/catalogo-cuentas', [CuentaContableController::class, 'index'])->name('catalogo.index');
 
     Route::middleware('role:Contador,Auditor')->group(function (): void {

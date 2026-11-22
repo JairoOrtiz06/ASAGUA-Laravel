@@ -33,7 +33,7 @@ class AuthenticatedSessionController extends Controller
         // while the login contract is to return the role panel immediately.
         $panel = match (Auth::user()->rol) {
             'Admin' => 'panel.admin',
-            'Contador' => 'panel.contador',
+            'Contador' => 'portal.contador',
             'Auditor' => 'panel.auditor',
             default => abort(403),
         };
