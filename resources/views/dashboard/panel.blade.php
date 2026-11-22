@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'ASAGUA — Panel '.$role)
 @section('content')
-<div class="topbar"><div><h2>Panel {{ $role }}</h2><p class="muted">Bienvenido, {{ $user->nombre }} {{ $user->apellido }}.</p></div><span class="muted">Usuario: {{ $user->usuario }}</span></div>
+<div class="topbar"><div><h2>Panel {{ $role }}</h2><p class="muted">Bienvenido, {{ $user->nombre }} {{ $user->apellido }}.</p></div><div class="actions"><span class="muted">Usuario: {{ $user->usuario }}</span>@if($role === 'Contador')<a class="button secondary" href="{{ route('portal.contador') }}">← Portal principal</a>@endif</div></div>
 <p>La autenticación y autorización de este panel están activas. Desde aquí puede consultar los módulos disponibles para su rol.</p>
 <div class="panel-grid">
     <a class="panel-link" href="{{ route('catalogo.index') }}"><strong>📚 Catálogo de cuentas</strong><br><span class="muted">Consulta de cuentas contables activas.</span></a>

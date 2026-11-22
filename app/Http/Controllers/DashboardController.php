@@ -11,7 +11,7 @@ class DashboardController extends Controller
     {
         return match (auth()->user()->rol) {
             'Admin' => redirect()->route('panel.admin'),
-            'Contador' => redirect()->route('panel.contador'),
+            'Contador' => redirect()->route('portal.contador'),
             'Auditor' => redirect()->route('panel.auditor'),
             default => abort(403),
         };

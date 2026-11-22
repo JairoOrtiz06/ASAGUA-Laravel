@@ -31,7 +31,7 @@
         <div class="brand"><h1>💧 ASAGUA</h1><small>Col. Las Flores, Mazariego y Suárez</small></div>
         @auth
             <nav class="nav">
-                <a href="{{ route('dashboard') }}">🏠 Principal</a>
+                <a href="{{ auth()->user()->rol === 'Contador' ? route('portal.contador') : route('dashboard') }}">🏠 Principal</a>
                 <a href="{{ route('catalogo.index') }}">📚 Catálogo de cuentas</a>
                 @if(in_array(auth()->user()->rol, ['Contador', 'Auditor'], true))
                     <a href="{{ route('partidas.index') }}">🧾 Partidas contables</a>

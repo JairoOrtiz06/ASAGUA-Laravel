@@ -11,7 +11,7 @@ class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_active_user_can_login_and_is_redirected_to_role_panel(): void
+    public function test_active_contador_can_login_and_is_redirected_to_main_portal(): void
     {
         User::factory()->create([
             'usuario' => 'contador1',
@@ -24,7 +24,7 @@ class AuthenticationTest extends TestCase
             'password' => 'secreto123',
         ]);
 
-        $response->assertRedirect(route('panel.contador'));
+        $response->assertRedirect(route('portal.contador'));
         $this->assertAuthenticated();
     }
 
