@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\PartidaRequest;
 use App\Models\CuentaContable;
+use App\Models\DocumentoFuente;
 use App\Models\Partida;
 use App\Services\PartidaService;
 use Illuminate\Http\RedirectResponse;
@@ -30,8 +31,12 @@ class PartidaController extends Controller
             ->where('nivel', 4)
             ->orderBy('codigo_cuenta')
             ->get();
+        $documentos = DocumentoFuente::query()
+            ->select(['id_documento', 'nombre_documento', 'tipo_documento', 'fecha_creacion'])
+            ->orderByDesc('id_documento')
+            ->get();
 
-        return view('partidas.create', compact('cuentas'));
+        return view('partidas.create', compact('cuentas', 'documentos'));
     }
 
     public function store(PartidaRequest $request, PartidaService $service): RedirectResponse

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CuentaContable;
 use App\Models\DetallePartida;
+use App\Models\DocumentoFuente;
 use App\Models\Partida;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,11 @@ use Illuminate\Validation\ValidationException;
 
 class PartidaService
 {
+    public function __construct(
+        private readonly DocumentoFuenteService $documentoFuenteService,
+    ) {
+    }
+
     /**
      * Persists a complete journal entry as one PostgreSQL transaction.
      * Monetary values are normalized to integer cents; no float is used.
@@ -22,6 +28,7 @@ class PartidaService
             // monetary value, so an invalid account always reports the account
             // problem first and cannot be masked by an invalid amount later on.
             $detallesEntrada = $this->validarCuentasActivas($data['detalles'] ?? []);
+            $detallesEntrada = $this->validarDocumentos($detallesEntrada);
             $detalles = $this->normalizarDetalles($detallesEntrada);
             $this->validarEquilibrio($detalles);
 
@@ -40,11 +47,20 @@ class PartidaService
             ]);
 
             foreach ($detalles as $detalle) {
+                $idDocumento = $detalle['id_documento'] ?? null;
+                if (($detalle['modo_documento'] ?? 'ninguno') === 'nuevo') {
+                    $documento = $this->documentoFuenteService->crear(
+                        $detalle['documento_nuevo'],
+                        $detalle['documento_nuevo']['archivo'] ?? null,
+                    );
+                    $idDocumento = $documento->getKey();
+                }
+
                 DetallePartida::create([
                     'id_partida' => $partida->getKey(),
                     'id_cuenta' => $detalle['id_cuenta'],
                     'id_usuario' => $usuario->getKey(),
-                    'id_documento' => null,
+                    'id_documento' => $idDocumento,
                     'descripcion' => $detalle['descripcion'],
                     'debe' => $detalle['debe'],
                     'haber' => $detalle['haber'],
@@ -85,6 +101,9 @@ class PartidaService
 
             $normalizados[] = [
                 'id_cuenta' => (int) ($detalle['id_cuenta'] ?? 0),
+                'modo_documento' => $detalle['modo_documento'] ?? 'ninguno',
+                'id_documento' => $detalle['id_documento'] ?? null,
+                'documento_nuevo' => $detalle['documento_nuevo'] ?? null,
                 'descripcion' => trim((string) ($detalle['descripcion'] ?? '')),
                 'debe_centavos' => $debe,
                 'haber_centavos' => $haber,
@@ -95,6 +114,58 @@ class PartidaService
         }
 
         return $normalizados;
+    }
+
+    private function validarDocumentos(array $detalles): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn (array $detalle): int => (int) ($detalle['id_documento'] ?? 0),
+            $detalles,
+        ))));
+        $documentos = DocumentoFuente::query()
+            ->whereIn('id_documento', $ids)
+            ->get()
+            ->keyBy('id_documento');
+
+        foreach ($detalles as $index => $detalle) {
+            $modo = (string) ($detalle['modo_documento'] ?? 'ninguno');
+            $idDocumento = $detalle['id_documento'] ?? null;
+
+            if ($modo === 'existente') {
+                if (! $idDocumento || ! $documentos->has((int) $idDocumento)) {
+                    throw ValidationException::withMessages([
+                        "detalles.{$index}.id_documento" => 'El documento fuente seleccionado no existe.',
+                    ]);
+                }
+            }
+
+            if ($modo !== 'existente' && $idDocumento) {
+                throw ValidationException::withMessages([
+                    "detalles.{$index}.id_documento" => 'El documento seleccionado no coincide con el modo indicado.',
+                ]);
+            }
+
+            if ($modo === 'nuevo') {
+                $nuevo = (array) ($detalle['documento_nuevo'] ?? []);
+                if (trim((string) ($nuevo['nombre_documento'] ?? '')) === ''
+                    || trim((string) ($nuevo['tipo_documento'] ?? '')) === '') {
+                    throw ValidationException::withMessages([
+                        "detalles.{$index}.documento_nuevo" => 'El nombre y tipo del documento son obligatorios.',
+                    ]);
+                }
+                $detalles[$index]['documento_nuevo'] = $nuevo;
+            } elseif (collect((array) ($detalle['documento_nuevo'] ?? []))->contains(
+                static fn (mixed $valor): bool => $valor !== null && $valor !== ''
+            )) {
+                throw ValidationException::withMessages([
+                    "detalles.{$index}.documento_nuevo" => 'Los datos de documento nuevo requieren seleccionar ese modo.',
+                ]);
+            }
+
+            $detalles[$index]['id_documento'] = $idDocumento ? (int) $idDocumento : null;
+        }
+
+        return $detalles;
     }
 
     private function validarCuentasActivas(array $detalles): array
