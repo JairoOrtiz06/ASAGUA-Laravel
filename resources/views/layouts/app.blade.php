@@ -48,8 +48,7 @@
                 @if(auth()->user()->rol === 'Contador')
                     <a href="{{ route('partidas.create') }}">＋ Registrar partida</a>
                     <a href="{{ route('ajustes.index') }}">⚙ Ajustes contables</a>
-                    <a href="{{ route('ajustes.create') }}">＋ Registrar ajuste</a>
-                    <a href="{{ route('documentos.create') }}">＋ Registrar documento</a>
+                    
                 @endif
                 @if(auth()->user()->rol === 'Admin')
                     <a href="{{ route('admin.users.index') }}">👥 Gestión de Usuarios</a>
