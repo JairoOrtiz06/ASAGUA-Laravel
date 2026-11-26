@@ -38,6 +38,14 @@ return [
             'report' => false,
         ],
 
+        'ingenieria_privada' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/ingenieria-documental'),
+            'visibility' => 'private',
+            'serve' => false,
+            'throw' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

@@ -24,6 +24,7 @@
         .inline { display:inline; } .pagination { margin-top:18px; }
         @media(max-width:760px) { .app { display:block; } .sidebar { width:auto; } .main { padding:12px; } .card { min-height:0; } .form-grid { grid-template-columns:1fr; } }
     </style>
+    @stack('styles')
 </head>
 <body>
 <div class="app">
@@ -31,6 +32,7 @@
         <div class="brand"><h1>💧 ASAGUA</h1><small>Col. Las Flores, Mazariego y Suárez</small></div>
         @auth
             <nav class="nav">
+                @section('sidebar-navigation')
                 <a href="{{ auth()->user()->rol === 'Contador' ? route('portal.contador') : route('dashboard') }}">🏠 Principal</a>
                 <a href="{{ route('catalogo.index') }}">📚 Catálogo de cuentas</a>
                 @if(in_array(auth()->user()->rol, ['Contador', 'Auditor'], true))
@@ -53,6 +55,7 @@
                 @if(auth()->user()->rol === 'Admin')
                     <a href="{{ route('admin.users.index') }}">👥 Gestión de Usuarios</a>
                 @endif
+                @show
             </nav>
             <form method="POST" action="{{ route('logout') }}" style="margin-top:35px">
                 @csrf <button type="submit" class="button secondary" style="width:100%">🚪 Cerrar sesión</button>
