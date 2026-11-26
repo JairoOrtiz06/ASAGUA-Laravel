@@ -1,17 +1,22 @@
 @extends('layouts.ingenieria-economica')
-@section('title', 'ASAGUA — Ingeniería Económica')
-@section('content')
-<div class="module-header">
-    <div>
-        <div class="brand"><h1>💧 ASAGUA</h1><small>Col. Las Flores, Mazariego y Suárez</small></div>
-        <br>
-        <h2>Ingeniería Económica</h2>
-        <p class="muted">Componente inicial de Ingeniería Económica.</p>
-    </div>
-    <a class="button secondary" href="{{ route('portal.contador') }}">← Portal principal</a>
-</div>
 
-<div class="module-content">
-    <p>Este componente está disponible como pantalla inicial. Sus funcionalidades se incorporarán posteriormente.</p>
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/asagua-inicios.css') }}">
+@endpush
+
+@section('economia-content')
+<div class="asagua-inicio-economico">
+    <x-asagua.banner titulo="Ingeniería Económica" icono="↗">
+        Gestiona proyectos de inversión, compara alternativas y analiza los resultados económicos para apoyar la toma de decisiones.
+    </x-asagua.banner>
+
+    <nav class="asagua-accesos" aria-label="Accesos de Ingeniería Económica">
+        <x-asagua.acceso :href="route('ingenieria-economica.proyectos.index')" icono="▰" titulo="Mis proyectos"
+            descripcion="Consulta y continúa trabajando en tus proyectos registrados." />
+        <x-asagua.acceso :href="route('ingenieria-economica.proyectos.create')" icono="＋" titulo="Nuevo proyecto"
+            descripcion="Registra una decisión de inversión, su fecha base y su horizonte." :acento="true" />
+        <x-asagua.acceso :href="route('ingenieria-economica.herramientas.index')" icono="▦" titulo="Herramientas financieras"
+            descripcion="Convierte tasas y calcula equivalencias de capitales y pagos uniformes." />
+    </nav>
 </div>
 @endsection
