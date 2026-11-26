@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+
 .asagua-portal, .app:has(.asagua-inicio-economico) {
     --inicio-azul: #0a4d8c;
     --inicio-tinta: #163857;
@@ -6,13 +8,13 @@
     --inicio-claro: #e6f2ff;
     --inicio-sombra: 0 5px 18px rgb(20 63 105 / 8%);
 }
-.asagua-portal { margin: 0; font-family: Arial, sans-serif; color: var(--inicio-tinta); background: linear-gradient(145deg,#073665,#0a4d8c 60%,#0c5a9d); }
+.asagua-portal { margin: 0; font-family: 'DM Sans', Arial, sans-serif; color: var(--inicio-tinta); background: radial-gradient(ellipse at 10% 8%, rgb(54 128 187 / 35%), transparent 36%), linear-gradient(145deg,#073665,#0a4d8c 60%,#0c5a9d); }
 .asagua-portal *, .asagua-portal *::before, .asagua-portal *::after { box-sizing: border-box; }
 .portal-shell { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: clamp(12px,4vw,48px); }
 .portal-card { width: min(100%,1050px); padding: clamp(16px,4vw,42px); border-radius: 26px; background: white; box-shadow: 0 24px 64px rgb(3 28 58 / 27%); }
 .portal-header, .portal-marca, .portal-cuenta { display: flex; align-items: center; gap: 14px; }
 .portal-header { justify-content: space-between; flex-wrap: wrap; margin-bottom: 28px; }
-.portal-marca h1 { margin: 0; color: var(--inicio-azul); font-size: clamp(1.35rem,3vw,1.85rem); letter-spacing: .04em; }
+.portal-marca h1 { margin: 0; color: var(--inicio-azul); font-family: Manrope,'DM Sans',sans-serif; font-size: clamp(1.35rem,3vw,1.85rem); letter-spacing: .04em; }
 .portal-marca p { margin: 4px 0 0; color: var(--inicio-secundario); font-size: .875rem; }
 .portal-gota { display: grid; flex: 0 0 48px; height: 48px; place-items: center; background: var(--inicio-claro); border-radius: 14px; font-size: 1.5rem; }
 .portal-cuenta { flex-wrap: wrap; overflow-wrap: anywhere; min-width: 0; }
@@ -31,7 +33,7 @@
 .asagua-accesos { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: clamp(12px,2vw,22px); }
 .asagua-acceso { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: start; gap: 13px; padding: clamp(15px,2vw,24px); border: 1px solid var(--inicio-borde); border-radius: 16px; background: white; box-shadow: var(--inicio-sombra); text-decoration: none; transition: border-color .16s,box-shadow .16s,background-color .16s; }
 .asagua-acceso:hover { background: #f8fbff; border-color: #6f9ac4; box-shadow: 0 8px 22px rgb(20 63 105 / 14%); }
-.asagua-acceso--violeta .asagua-icono { background: #efebff; color: #55419b; }
+.asagua-acceso--violeta .asagua-icono { background: #dceeff; color: #0a4d8c; }
 .asagua-acceso-texto { overflow-wrap: anywhere; color: var(--inicio-secundario); line-height: 1.45; }
 .asagua-acceso-texto strong { display: block; margin-bottom: 5px; color: var(--inicio-azul); font-size: 1.15rem; }
 .asagua-flecha { color: var(--inicio-azul); align-self: center; font-size: 1.25rem; }
