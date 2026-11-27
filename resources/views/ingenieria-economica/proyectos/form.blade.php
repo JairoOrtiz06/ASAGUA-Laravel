@@ -1,7 +1,10 @@
 @extends('layouts.ingenieria-economica')
 
 @section('economia-content')
-@php($editando = $proyecto->exists)
+@php
+    use App\Services\IngenieriaEconomica\ProyeccionFlujosService;
+    $editando = $proyecto->exists;
+@endphp
 <div class="topbar">
     <div>
         <h2>{{ $editando ? 'Editar proyecto' : 'Nuevo proyecto' }}</h2>
@@ -9,6 +12,9 @@
     <a class="button secondary" href="{{ $editando ? route('ingenieria-economica.proyectos.show', $proyecto) : route('ingenieria-economica.proyectos.index') }}">← Volver</a>
 </div>
 
+@if ($editando && ($proyecto->horizonte_anios < 1 || $proyecto->horizonte_anios > ProyeccionFlujosService::MAX_ANIOS))
+    <p class="economia-aviso">El horizonte guardado está fuera del rango operativo. Corrígelo antes de guardar los cambios. Las evaluaciones e informes históricos se conservan.</p>
+@endif
 <section class="panel-link economia-form">
     <form method="POST" action="{{ $editando ? route('ingenieria-economica.proyectos.update', $proyecto) : route('ingenieria-economica.proyectos.store') }}">
         @csrf
@@ -56,6 +62,8 @@
                 'campo' => 'horizonte_anios',
                 'etiqueta' => 'Horizonte en años',
                 'valor' => $proyecto->horizonte_anios,
+                'maximoNumerico' => ProyeccionFlujosService::MAX_ANIOS,
+                'ayuda' => 'Indica entre 1 y '.ProyeccionFlujosService::MAX_ANIOS.' años.',
                 'tipo' => 'number',
                 'obligatorio' => true,
             ])

@@ -116,6 +116,22 @@ class ExpedienteDocumentalTest extends TestCase
         $url = route(self::R.'informes.download',[$p,$version]);
         $this->assertSame($pdf,$this->get($url)->assertDownload()->streamedContent());
         $instantanea = $version->instantanea;
+        $instantaneaEvaluacion = $evaluacion->fresh()->instantanea;
+        $p->update(['horizonte_anios' => 101]);
+        $datosProyecto = $p->only(['nombre', 'descripcion', 'tipo_decision', 'estado', 'horizonte_anios']);
+        $datosProyecto['fecha_base'] = $p->fecha_base->format('Y-m-d');
+        $this->patch(route(self::R.'update', $p), $datosProyecto)->assertSessionHasErrors('horizonte_anios');
+        $this->assertSame(101, $p->fresh()->horizonte_anios);
+        $this->get(route(self::R.'evaluaciones.show', [$p, $evaluacion]))->assertOk()
+            ->assertSee('5 años · 2026-11-24 a 2031-11-24');
+        $this->get(route(self::R.'informes.show', [$p, $version]))->assertOk()->assertSee('2034.00');
+        $datosProyecto['horizonte_anios'] = 100;
+        $this->patch(route(self::R.'update', $p), $datosProyecto)
+            ->assertRedirectToRoute(self::R.'show', $p)->assertSessionHasNoErrors();
+        $this->assertSame(100, $p->fresh()->horizonte_anios);
+        $this->assertSame(5, $esc->fresh()->horizonte_anios);
+        $this->assertSame($instantaneaEvaluacion, $evaluacion->fresh()->instantanea);
+
         $c->update(['monto'=>'40']);
         $esc->update(['nombre'=>'Escenario renombrado']);
         $alt->update(['nombre'=>'Alternativa renombrada']);

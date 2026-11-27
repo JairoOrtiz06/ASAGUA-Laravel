@@ -9,6 +9,7 @@ use App\Models\IngenieriaEconomica\Proyecto;
 use App\Services\IngenieriaEconomica\EscenarioPrincipalService;
 use App\Services\IngenieriaEconomica\ConversionTasasService;
 use App\Services\IngenieriaEconomica\DecimalFinanciero;
+use App\Services\IngenieriaEconomica\ProyeccionFlujosService;
 use Illuminate\Http\JsonResponse;
 use App\Services\IngenieriaEconomica\DependenciasEconomicas;
 use App\Models\IngenieriaEconomica\CalculoActivo;
@@ -24,8 +25,9 @@ class EscenarioController extends Controller
     {
         Gate::authorize('update', $proyecto);
 
+        $horizonte = $proyecto->horizonte_anios;
         $escenario = new Escenario([
-            'horizonte_anios' => $proyecto->horizonte_anios,
+            'horizonte_anios' => $horizonte >= 1 && $horizonte <= ProyeccionFlujosService::MAX_ANIOS ? $horizonte : null,
             'periodicidad' => 'anual',
             'estado_tasa' => 'pendiente',
         ]);

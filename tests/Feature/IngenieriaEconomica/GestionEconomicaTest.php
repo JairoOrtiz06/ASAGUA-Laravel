@@ -88,6 +88,79 @@ class GestionEconomicaTest extends TestCase
         $this->assertSame('en_preparacion', $proyecto->fresh()->estado);
     }
 
+    public function test_horizontes_validos_se_guardan_al_crear_y_editar_proyectos(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $this->get(route(self::RUTA.'create'))->assertOk()
+            ->assertSee('min="1" max="100"', false)->assertSee('Indica entre 1 y 100 años.');
+
+        foreach ([1, 5, 100] as $horizonte) {
+            $datos = array_replace(self::PROYECTO, ['nombre' => "Proyecto de $horizonte años", 'horizonte_anios' => $horizonte]);
+            $respuesta = $this->post(route(self::RUTA.'store'), $datos)->assertSessionHasNoErrors();
+            $proyecto = Proyecto::query()->where('nombre', $datos['nombre'])->sole();
+            $respuesta->assertRedirectToRoute(self::RUTA.'show', $proyecto);
+            $this->assertSame($horizonte, $proyecto->horizonte_anios);
+        }
+
+        $this->get(route(self::RUTA.'edit', $proyecto))->assertOk()->assertSee('min="1" max="100"', false);
+        foreach ([1, 5, 100] as $horizonte) {
+            $this->patch(route(self::RUTA.'update', $proyecto), array_replace($datos, ['horizonte_anios' => $horizonte]))
+                ->assertRedirectToRoute(self::RUTA.'show', $proyecto)->assertSessionHasNoErrors();
+            $this->assertSame($horizonte, $proyecto->fresh()->horizonte_anios);
+        }
+    }
+
+    public function test_horizontes_invalidos_se_rechazan_al_crear_y_editar_proyectos(): void
+    {
+        $contador = User::factory()->create();
+        $proyecto = $this->proyecto($contador);
+        $this->actingAs($contador);
+        foreach ([0, 101, 32767, -1, 'cinco'] as $horizonte) {
+            $datos = array_replace(self::PROYECTO, ['horizonte_anios' => $horizonte]);
+            $mensaje = $horizonte === 'cinco'
+                ? 'El campo horizonte en años debe ser un número entero.'
+                : 'El campo horizonte en años debe estar entre 1 y 100.';
+            $this->post(route(self::RUTA.'store'), $datos)
+                ->assertSessionHasErrors(['horizonte_anios' => $mensaje]);
+            $this->patch(route(self::RUTA.'update', $proyecto), $datos)
+                ->assertSessionHasErrors(['horizonte_anios' => $mensaje]);
+        }
+
+        $this->assertDatabaseCount('ie_proyectos', 1);
+        $this->assertSame(5, $proyecto->fresh()->horizonte_anios);
+    }
+
+    public function test_proyecto_historico_requiere_elegir_horizonte_para_nuevo_escenario(): void
+    {
+        $contador = User::factory()->create();
+        $proyecto = $this->proyecto($contador, ['horizonte_anios' => 32767]);
+        $this->actingAs($contador);
+
+        $this->get(route(self::RUTA.'show', $proyecto))->assertOk()->assertSee('32767');
+        $this->get(route(self::RUTA.'edit', $proyecto))->assertOk()
+            ->assertSee('El horizonte guardado está fuera del rango operativo')
+            ->assertSee('name="horizonte_anios" type="number" value="32767"', false);
+        $this->get(route(self::RUTA.'escenarios.create', $proyecto))->assertOk()
+            ->assertSee('El horizonte del proyecto está fuera del rango operativo')
+            ->assertSee('name="horizonte_anios" type="number" value=""', false);
+
+        $ruta = route(self::RUTA.'escenarios.store', $proyecto);
+        foreach ([null, 32767] as $horizonte) {
+            $this->post($ruta, array_replace(self::ESCENARIO, ['horizonte_anios' => $horizonte]))
+                ->assertSessionHasErrors('horizonte_anios');
+        }
+        $this->assertDatabaseCount('ie_escenarios', 0);
+        $this->post($ruta, self::ESCENARIO)->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame(5, $proyecto->escenarios()->sole()->horizonte_anios);
+        $this->assertSame(32767, $proyecto->fresh()->horizonte_anios);
+
+        $this->actingAs(User::factory()->create());
+        $this->get(route(self::RUTA.'escenarios.create', $proyecto))->assertForbidden();
+        $this->post($ruta, self::ESCENARIO)->assertForbidden();
+        $this->patch(route(self::RUTA.'update', $proyecto), self::PROYECTO)->assertForbidden();
+        $this->assertSame(32767, $proyecto->fresh()->horizonte_anios);
+    }
+
     public function test_owner_can_manage_alternatives_and_implemented_records_are_preserved(): void
     {
         $contador = User::factory()->create();
@@ -128,11 +201,14 @@ class GestionEconomicaTest extends TestCase
         $contador = User::factory()->create();
         $proyecto = $this->proyecto($contador);
 
-        $this->actingAs($contador)->get(route(self::RUTA.'escenarios.create', $proyecto))->assertOk();
-        $this->post(route(self::RUTA.'escenarios.store', $proyecto), self::ESCENARIO + ['es_principal' => true])
+        $formulario = $this->actingAs($contador)->get(route(self::RUTA.'escenarios.create', $proyecto))
+            ->assertOk()->assertSee('name="horizonte_anios" type="number" value="5"', false);
+        $datos = array_replace(self::ESCENARIO, ['horizonte_anios' => $formulario->viewData('escenario')->horizonte_anios]);
+        $this->post(route(self::RUTA.'escenarios.store', $proyecto), $datos + ['es_principal' => true])
             ->assertRedirect()->assertSessionHasNoErrors();
 
         $primero = $proyecto->escenarios()->sole();
+        $this->assertSame($proyecto->horizonte_anios, $primero->horizonte_anios);
         $this->assertTrue($primero->proyecto->is($proyecto));
         $this->assertFalse($primero->es_principal);
         $this->assertSame('0.002500000000', $primero->tasa_original);
