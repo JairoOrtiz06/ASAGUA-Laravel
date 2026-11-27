@@ -3,6 +3,7 @@
 namespace App\Http\Requests\IngenieriaEconomica;
 
 use App\Models\IngenieriaEconomica\Proyecto;
+use App\Services\IngenieriaEconomica\ProyeccionFlujosService;
 use Illuminate\Validation\Rule;
 
 class ProyectoRequest extends ConfiguracionRequest
@@ -24,9 +25,14 @@ class ProyectoRequest extends ConfiguracionRequest
             'organizacion' => ['nullable', 'string', 'max:150'],
             'tipo_decision' => ['required', Rule::in(array_keys(Proyecto::TIPOS_DECISION))],
             'fecha_base' => ['required', 'date_format:Y-m-d'],
-            'horizonte_anios' => ['required', 'integer', 'between:1,32767'],
+            'horizonte_anios' => ['required', 'integer', 'between:1,'.ProyeccionFlujosService::MAX_ANIOS],
             'estado' => ['required', Rule::in(array_keys(Proyecto::ESTADOS))],
         ];
+    }
+
+    public function messages(): array
+    {
+        return ['horizonte_anios.between' => 'El campo :attribute debe estar entre :min y :max.'] + parent::messages();
     }
 
     public function attributes(): array

@@ -16,6 +16,8 @@
 
 @if ($editando && $escenario->horizonte_anios > ProyeccionFlujosService::MAX_ANIOS)
     <p class="economia-aviso">El horizonte guardado supera el límite operativo. Corrígelo antes de generar cálculos nuevos. Las versiones históricas se conservan.</p>
+@elseif (! $editando && $escenario->horizonte_anios === null)
+    <p class="economia-aviso">El horizonte del proyecto está fuera del rango operativo. Indica un horizonte válido para este escenario.</p>
 @endif
 <section class="panel-link economia-form">
     <form method="POST" action="{{ $editando ? route('ingenieria-economica.proyectos.escenarios.update', [$proyecto, $escenario]) : route('ingenieria-economica.proyectos.escenarios.store', $proyecto) }}"
