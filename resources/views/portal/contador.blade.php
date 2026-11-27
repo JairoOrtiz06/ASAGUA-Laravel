@@ -9,7 +9,7 @@
     <div class="portal-cuenta">
         <span class="portal-usuario-avatar" aria-hidden="true">{{ substr($user->nombre ?? 'U', 0, 1) }}{{ substr($user->apellido ?? '', 0, 1) }}</span>
         <span class="portal-usuario-texto"><small>Conectado como</small><strong>{{ $user->usuario }}</strong><em>{{ $user->rol }}</em></span>
-        <form method="POST" action="{{ route('logout') }}">@csrf<button class="portal-salir" type="submit"><span aria-hidden="true">↗</span> Cerrar sesión</button></form>
+        <form method="POST" action="{{ route('logout') }}">@csrf<button class="portal-salir" type="submit" aria-label="Cerrar sesión" title="Cerrar sesión"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 4H5.8A1.8 1.8 0 0 0 4 5.8v12.4A1.8 1.8 0 0 0 5.8 20H10M14 8l4 4-4 4m4-4H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></form>
     </div>
 </header>
 <main class="portal-main">

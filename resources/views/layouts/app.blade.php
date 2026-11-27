@@ -71,7 +71,7 @@
             @if($errors->any())<div class="errors" role="alert"><strong>Revisa la información ingresada.</strong><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
             @yield('content')
         </section>
-        <footer class="app-footer"><span>ASAGUA · Sistema institucional de gestión</span><span>Uso interno</span></footer>
+        <footer class="app-footer"><span class="footer-brand"><span class="footer-mark" aria-hidden="true">A</span><span><strong>ASAGUA</strong><small>Sistema institucional de gesti&oacute;n</small></span></span><span class="footer-meta"><i></i> Plataforma de uso interno</span></footer>
     </main>
 </div>
 </body>
