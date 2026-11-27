@@ -1,10 +1,60 @@
 <!doctype html>
 <html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ASAGUA — Iniciar sesión</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0a4d8c;font-family:Arial,sans-serif}.card{width:min(360px,90vw);padding:32px;background:#fff;border-radius:18px}.brand{text-align:center;color:#0a4d8c;margin-bottom:25px}.brand h1{font-size:36px;margin:0}.brand p{color:#1b75bb}label{display:block;font-weight:bold;color:#17324d;margin-top:14px}input{width:100%;box-sizing:border-box;padding:11px;margin-top:6px;border:1px solid #a9c5d8;border-radius:6px}button{width:100%;padding:12px;margin-top:22px;border:0;border-radius:7px;background:#0a4d8c;color:#fff;font-weight:bold;cursor:pointer}.error{padding:10px;background:#fee2e2;color:#991b1b;border-radius:6px}</style>
-</head><body><main class="card"><div class="brand"><h1>💧 ASAGUA</h1><p>Col. Las Flores, Mazariego y Suárez<br>Sistema Contable</p></div>
-@if($errors->any())<div class="error">{{ $errors->first() }}</div>@endif
-<form method="POST" action="{{ route('login.store') }}">@csrf
-<label for="usuario">Usuario</label><input id="usuario" name="usuario" value="{{ old('usuario') }}" required autofocus>
-<label for="password">Contraseña</label><input id="password" type="password" name="password" required>
-<button type="submit">Acceder 💧</button></form></main></body></html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0a315a">
+    <title>ASAGUA — Iniciar sesión</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *{box-sizing:border-box}body{--navy:#0b3159;--blue:#1478c3;--muted:#6a7f93;margin:0;min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 15% 12%,#2679b94d,transparent 35%),linear-gradient(140deg,#071e38,#0a315a 55%,#104e81);color:#172d45;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}.login-shell{display:grid;grid-template-columns:1fr 1fr;width:min(960px,100%);min-height:565px;overflow:hidden;border:1px solid #ffffff28;border-radius:24px;background:#fff;box-shadow:0 30px 90px #03152e66}.brand-panel{position:relative;isolation:isolate;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;padding:clamp(30px,5vw,58px);background:linear-gradient(148deg,#0c3d70,#075995 70%,#0c70aa);color:white}.brand-panel:before,.brand-panel:after{position:absolute;z-index:-1;content:'';width:330px;height:330px;border:1px solid #ffffff20;border-radius:50%;right:-105px;bottom:-135px;box-shadow:0 0 0 34px #ffffff09,0 0 0 75px #ffffff06}.brand-panel:after{width:200px;height:200px;right:-39px;bottom:-70px}.brand{display:flex;align-items:center;gap:14px}.brand-mark{display:grid;width:54px;height:54px;place-items:center;border:1px solid #ffffff40;border-radius:17px;background:#ffffff17;box-shadow:0 10px 25px #001d3c30}.brand-mark svg{width:34px;height:34px}.brand-name{font:800 1.42rem/1.1 Manrope,sans-serif;letter-spacing:.12em}.brand-sub{display:block;margin-top:6px;color:#c5def1;font-size:.72rem;letter-spacing:.08em}.brand-message{max-width:380px;margin-top:50px}.eyebrow{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid #ffffff30;border-radius:99px;background:#ffffff12;color:#d9edff;font-size:.72rem;font-weight:600;letter-spacing:.04em}.eyebrow:before{width:7px;height:7px;border-radius:50%;background:#62d6b2;content:''}.brand-message h1{max-width:350px;margin:22px 0 14px;font:700 clamp(2rem,4vw,3rem)/1.08 Manrope,sans-serif;letter-spacing:-.045em}.brand-message p{max-width:350px;margin:0;color:#c5daeb;font-size:.95rem;line-height:1.75}.brand-foot{color:#b5cfe4;font-size:.73rem}.form-panel{display:flex;flex-direction:column;justify-content:center;padding:clamp(30px,5.5vw,64px)}.form-panel h2{margin:0;color:#0c3767;font:800 1.75rem Manrope,sans-serif;letter-spacing:-.04em}.intro{margin:9px 0 28px;color:var(--muted);font-size:.88rem;line-height:1.6}.error{margin:0 0 15px;padding:12px 14px;border:1px solid #efc9c6;border-radius:10px;background:#fff4f3;color:#942e2a;font-size:.84rem}.field{margin-top:17px}.field label{display:block;color:#29445e;font-size:.82rem;font-weight:700}.field input{width:100%;height:47px;margin-top:8px;padding:0 13px;border:1px solid #cfdae4;border-radius:9px;outline:none;background:#fbfdff;color:#172d45;font:500 .9rem 'DM Sans',sans-serif;transition:border-color .16s,box-shadow .16s}.field input::placeholder{color:#9cabb8}.field input:focus{border-color:#418ec4;box-shadow:0 0 0 4px #2589d421}.submit{width:100%;height:47px;margin-top:25px;border:0;border-radius:9px;background:linear-gradient(110deg,#1680ca,#0c5795);box-shadow:0 7px 17px #0c57952e;color:white;cursor:pointer;font:700 .9rem 'DM Sans',sans-serif;transition:transform .16s,box-shadow .16s}.submit:hover{transform:translateY(-1px);box-shadow:0 10px 22px #0c579540}.submit:focus-visible{outline:3px solid #42a3e7;outline-offset:3px}.secure-note{display:flex;align-items:center;gap:8px;margin-top:22px;color:#72869a;font-size:.73rem}.secure-note svg{width:16px;height:16px;color:#1680a3}@media(max-width:700px){body{padding:14px}.login-shell{grid-template-columns:1fr;max-width:480px;min-height:0}.brand-panel{min-height:205px;padding:22px 25px}.brand-mark{width:43px;height:43px;border-radius:13px}.brand-mark svg{width:29px}.brand-message{margin:22px 0 0}.brand-message h1{margin:12px 0 7px;font-size:1.55rem}.brand-message p{font-size:.8rem;line-height:1.5}.brand-foot{display:none}.eyebrow{font-size:.65rem;padding:5px 9px}.form-panel{padding:27px 25px 30px}.form-panel h2{font-size:1.5rem}.intro{margin:7px 0 16px}.field{margin-top:13px}}
+    </style>
+    <style>
+        .password-input-wrap{position:relative;display:flex;align-items:center}.password-input-wrap input{padding-right:83px!important}.password-toggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);padding:6px 9px;border:0;border-radius:6px;background:transparent;color:#1674ac;cursor:pointer;font:700 .73rem 'DM Sans',sans-serif}.password-toggle:hover{background:#eaf4fa}.password-toggle:focus-visible{outline:2px solid #2589d4;outline-offset:1px}
+    </style>
+</head>
+<body>
+    <main class="login-shell">
+        <section class="brand-panel" aria-label="ASAGUA">
+            <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M16 3C12 9 6 15 6 21a10 10 0 0 0 20 0c0-6-6-12-10-18Z" fill="currentColor"/><path d="M11 21c0 2.9 2.1 5 5 5" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span><span><span class="brand-name">ASAGUA</span><span class="brand-sub">SISTEMA INSTITUCIONAL</span></span></div>
+            <div class="brand-message"><span class="eyebrow">Gestión administrativa</span><h1>Información clara. Decisiones confiables.</h1><p>Una plataforma para la gestión contable y el análisis económico de ASAGUA.</p></div>
+            <div class="brand-foot">Col. Las Flores, Mazariego y Suárez</div>
+        </section>
+        <section class="form-panel" aria-labelledby="login-title">
+            <h2 id="login-title">Bienvenido</h2><p class="intro">Ingresa tus credenciales para continuar al sistema.</p>
+            @if($errors->any())<div class="error" role="alert">{{ $errors->first() }}</div>@endif
+            <form method="POST" action="{{ route('login.store') }}">@csrf
+                <div class="field"><label for="usuario">Usuario</label><input id="usuario" name="usuario" value="{{ old('usuario') }}" autocomplete="username" placeholder="Tu nombre de usuario" required autofocus></div>
+                <div class="field"><label for="password">Contraseña</label><input id="password" type="password" name="password" autocomplete="current-password" placeholder="Tu contraseña" required></div>
+                <button class="submit" type="submit">Iniciar sesión <span aria-hidden="true">→</span></button>
+            </form>
+            <div class="secure-note"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.5 16 5v4.4c0 3.7-2.5 6.6-6 8.1-3.5-1.5-6-4.4-6-8.1V5l6-2.5Z" stroke="currentColor" stroke-width="1.5"/><path d="m7.5 9.7 1.7 1.7 3.4-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Acceso protegido para personal autorizado</div>
+        </section>
+    </main>
+<script>
+    const passwordInput = document.getElementById('password');
+    if (passwordInput) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'password-input-wrap';
+        passwordInput.parentNode.insertBefore(wrapper, passwordInput);
+        wrapper.appendChild(passwordInput);
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'password-toggle';
+        toggle.textContent = 'Mostrar';
+        toggle.setAttribute('aria-label', 'Mostrar contraseña');
+        toggle.setAttribute('aria-pressed', 'false');
+        wrapper.appendChild(toggle);
+        toggle.addEventListener('click', () => {
+            const visible = passwordInput.type === 'password';
+            passwordInput.type = visible ? 'text' : 'password';
+            toggle.textContent = visible ? 'Ocultar' : 'Mostrar';
+            toggle.setAttribute('aria-label', visible ? 'Ocultar contraseña' : 'Mostrar contraseña');
+            toggle.setAttribute('aria-pressed', String(visible));
+        });
+    }
+</script>
+</body>
+</html>

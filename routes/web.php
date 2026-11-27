@@ -12,7 +12,21 @@ use App\Http\Controllers\DocumentoFuenteController;
 use App\Http\Controllers\PartidaController;
 use App\Http\Controllers\LibroContableController;
 use App\Http\Controllers\HojaTrabajoController;
-use App\Http\Controllers\IngenieriaEconomicaController;
+use App\Http\Controllers\IngenieriaEconomica\ActivoController;
+use App\Http\Controllers\IngenieriaEconomica\AjusteFlujoController;
+use App\Http\Controllers\IngenieriaEconomica\CalculoActivoController;
+use App\Http\Controllers\IngenieriaEconomica\IntegracionActivoController;
+use App\Http\Controllers\IngenieriaEconomica\ConceptoController;
+use App\Http\Controllers\IngenieriaEconomica\FlujoController;
+use App\Http\Controllers\IngenieriaEconomica\FuenteConceptoController;
+use App\Http\Controllers\IngenieriaEconomica\AlternativaController;
+use App\Http\Controllers\IngenieriaEconomica\EscenarioController;
+use App\Http\Controllers\IngenieriaEconomica\EvaluacionController;
+use App\Http\Controllers\IngenieriaEconomica\EvidenciaDocumentalController;
+use App\Http\Controllers\IngenieriaEconomica\InformeEconomicoController;
+use App\Http\Controllers\IngenieriaEconomica\SensibilidadController;
+use App\Http\Controllers\IngenieriaEconomica\ProyectoController;
+use App\Http\Controllers\IngenieriaEconomica\HerramientaFinancieraController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\ReportePdfController;
 use Illuminate\Support\Facades\Route;
@@ -26,14 +40,101 @@ Route::middleware('guest')->group(function (): void {
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 });
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware(['auth', \App\Http\Middleware\EnsureUserIsActive::class])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'redirectByRole'])->name('dashboard');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
     Route::middleware('role:Contador')->group(function (): void {
         Route::get('/portal/contador', [PortalController::class, 'contador'])->name('portal.contador');
-        Route::get('/ingenieria-economica', [IngenieriaEconomicaController::class, 'index'])
-            ->name('ingenieria-economica.index');
+        Route::prefix('ingenieria-economica')->name('ingenieria-economica.')->scopeBindings()
+            ->where(['proyecto' => '[0-9]+', 'alternativa' => '[0-9]+', 'escenario' => '[0-9]+', 'concepto' => '[0-9]+', 'fuente' => '[0-9]+', 'activo' => '[0-9]+'])
+            ->group(function (): void {
+                Route::view('/', 'ingenieria-economica.index')->name('index');
+                Route::prefix('herramientas')->name('herramientas.')->group(function (): void {
+                    $herramientas = array_keys(HerramientaFinancieraController::HERRAMIENTAS);
+                    Route::get('/', [HerramientaFinancieraController::class, 'index'])->name('index');
+                    Route::get('/{herramienta}', [HerramientaFinancieraController::class, 'show'])
+                        ->whereIn('herramienta', $herramientas)->name('show');
+                    Route::post('/{herramienta}', [HerramientaFinancieraController::class, 'calcular'])
+                        ->whereIn('herramienta', $herramientas)->name('calcular');
+                });
+                Route::resource('proyectos', ProyectoController::class)
+                    ->parameters(['proyectos' => 'proyecto']);
+                Route::resource('proyectos.alternativas', AlternativaController::class)->except('show')
+                    ->parameters(['proyectos' => 'proyecto', 'alternativas' => 'alternativa']);
+                Route::post('proyectos/{proyecto}/conceptos/previsualizar', [ConceptoController::class, 'previsualizar'])
+                    ->name('proyectos.conceptos.previsualizar');
+                Route::post('proyectos/{proyecto}/conceptos/{concepto}/previsualizar', [ConceptoController::class, 'previsualizarEdicion'])
+                    ->name('proyectos.conceptos.previsualizarEdicion');
+                Route::resource('proyectos.conceptos', ConceptoController::class)
+                    ->parameters(['proyectos' => 'proyecto', 'conceptos' => 'concepto']);
+                Route::resource('proyectos.conceptos.fuentes', FuenteConceptoController::class)
+                    ->only(['create', 'store', 'edit', 'update', 'destroy'])
+                    ->parameters(['proyectos' => 'proyecto', 'conceptos' => 'concepto', 'fuentes' => 'fuente']);
+                Route::resource('proyectos.activos', ActivoController::class)
+                    ->parameters(['proyectos' => 'proyecto', 'activos' => 'activo']);
+                Route::prefix('proyectos/{proyecto}/activos/{activo}')->name('proyectos.activos.')->group(function (): void {
+                    Route::get('/depreciacion', [CalculoActivoController::class, 'depreciacion'])->name('depreciacion');
+                    Route::post('/depreciacion', [CalculoActivoController::class, 'calcularDepreciacion'])->name('depreciacion.store');
+                    Route::get('/reemplazo', [CalculoActivoController::class, 'reemplazo'])->name('reemplazo');
+                    Route::post('/reemplazo', [CalculoActivoController::class, 'calcularReemplazo'])->name('reemplazo.store');
+                    Route::get('/calculos/{calculo}', [CalculoActivoController::class, 'show'])->whereNumber('calculo')->name('calculos.show');
+                    Route::get('/calculos/{calculo}/csv', [CalculoActivoController::class, 'csv'])->whereNumber('calculo')->name('calculos.csv');
+                    Route::get('/fuentes/create', [IntegracionActivoController::class, 'fuente'])->name('fuentes.create');
+                    Route::delete('/fuentes/{fuente}', [IntegracionActivoController::class, 'retirarFuente'])->name('fuentes.destroy');
+                    Route::post('/fuentes', [IntegracionActivoController::class, 'guardarFuente'])->name('fuentes.store');
+                    Route::get('/flujo/create', [IntegracionActivoController::class, 'flujo'])->name('flujo.create');
+                    Route::post('/flujo', [IntegracionActivoController::class, 'guardarFlujo'])->name('flujo.store');
+                });
+                Route::get('proyectos/{proyecto}/flujos', [FlujoController::class, 'index'])->name('proyectos.flujos.index');
+                Route::prefix('proyectos/{proyecto}/sensibilidad')->name('proyectos.sensibilidad.')->group(function (): void {
+                    Route::get('/', [SensibilidadController::class, 'index'])->name('index');
+                    Route::get('/nuevo', [SensibilidadController::class, 'create'])->name('create');
+                    Route::post('/vista-previa', [SensibilidadController::class, 'preview'])->name('preview');
+                    Route::post('/', [SensibilidadController::class, 'store'])->name('store');
+                    Route::get('/{analisis}', [SensibilidadController::class, 'show'])->whereNumber('analisis')->name('show');
+                });
+                Route::prefix('proyectos/{proyecto}')->name('proyectos.')->middleware('cache.headers:private;no_store')->group(function (): void {
+                    Route::get('/validacion', [InformeEconomicoController::class, 'calidad'])->name('validacion');
+                    Route::get('/referencias-contables', [InformeEconomicoController::class, 'referencias'])->name('referencias');
+                    Route::prefix('evidencias')->name('evidencias.')->group(function (): void {
+                        Route::get('/', [EvidenciaDocumentalController::class, 'index'])->name('index');
+                        Route::get('/nueva', [EvidenciaDocumentalController::class, 'create'])->name('create');
+                        Route::post('/', [EvidenciaDocumentalController::class, 'store'])->name('store');
+                        Route::get('/{evidencia}', [EvidenciaDocumentalController::class, 'show'])->whereNumber('evidencia')->name('show');
+                        Route::get('/{evidencia}/archivo', [EvidenciaDocumentalController::class, 'download'])->whereNumber('evidencia')->name('download');
+                        Route::post('/{evidencia}/adjunto', [EvidenciaDocumentalController::class, 'adjuntar'])->whereNumber('evidencia')->name('adjuntar');
+                        Route::post('/{evidencia}/estado', [EvidenciaDocumentalController::class, 'estado'])->whereNumber('evidencia')->name('estado');
+                        Route::delete('/{evidencia}', [EvidenciaDocumentalController::class, 'destroy'])->whereNumber('evidencia')->name('destroy');
+                        Route::delete('/{evidencia}/vinculos/{vinculo}', [EvidenciaDocumentalController::class, 'desvincular'])
+                            ->whereNumber(['evidencia', 'vinculo'])->name('desvincular');
+                        Route::post('/{evidencia}/vinculos', [EvidenciaDocumentalController::class, 'vincular'])->whereNumber('evidencia')->name('vincular');
+                    });
+                    Route::prefix('informes')->name('informes.')->group(function (): void {
+                        Route::get('/', [InformeEconomicoController::class, 'index'])->name('index');
+                        Route::post('/vista-previa', [InformeEconomicoController::class, 'preview'])->name('preview');
+                        Route::post('/', [InformeEconomicoController::class, 'store'])->name('store');
+                        Route::get('/{informe}', [InformeEconomicoController::class, 'show'])->whereNumber('informe')->name('show');
+                        Route::get('/{informe}/pdf', [InformeEconomicoController::class, 'download'])->whereNumber('informe')->name('download');
+                    });
+                });
+                Route::prefix('proyectos/{proyecto}/evaluaciones')->name('proyectos.evaluaciones.')->group(function (): void {
+                    Route::get('/', [EvaluacionController::class, 'index'])->name('index');
+                    Route::post('/vista-previa', [EvaluacionController::class, 'preview'])->name('preview');
+                    Route::post('/', [EvaluacionController::class, 'store'])->name('store');
+                    Route::get('/{evaluacion}', [EvaluacionController::class, 'show'])->whereNumber('evaluacion')->name('show');
+                });
+                Route::get('proyectos/{proyecto}/ajustes-flujo/create', [AjusteFlujoController::class, 'create'])->name('proyectos.ajustes-flujo.create');
+                Route::post('proyectos/{proyecto}/ajustes-flujo', [AjusteFlujoController::class, 'store'])->name('proyectos.ajustes-flujo.store');
+                Route::delete('proyectos/{proyecto}/ajustes-flujo/{ajuste}', [AjusteFlujoController::class, 'destroy'])
+                    ->whereNumber('ajuste')->name('proyectos.ajustes-flujo.destroy');
+                Route::post('proyectos/{proyecto}/escenarios/previsualizar', [EscenarioController::class, 'previsualizar'])
+                    ->name('proyectos.escenarios.previsualizar');
+                Route::resource('proyectos.escenarios', EscenarioController::class)->only(['create', 'store', 'edit', 'update', 'destroy'])
+                    ->parameters(['proyectos' => 'proyecto', 'escenarios' => 'escenario']);
+                Route::patch('proyectos/{proyecto}/escenarios/{escenario}/principal', [EscenarioController::class, 'principal'])
+                    ->name('proyectos.escenarios.principal');
+            });
     });
 
     Route::get('/catalogo-cuentas', [CuentaContableController::class, 'index'])->name('catalogo.index');
