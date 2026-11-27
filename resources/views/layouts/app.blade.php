@@ -3,73 +3,76 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0c3767">
     <title>@yield('title', 'ASAGUA')</title>
-    <style>
-        :root { --navy:#0a4d8c; --blue:#29a8e0; --cream:#eaf4fc; --text:#17324d; }
-        * { box-sizing:border-box; } body { margin:0; font-family:Arial,sans-serif; color:var(--text); background:var(--navy); }
-        a { color:inherit; } .app { min-height:100vh; display:flex; } .sidebar { width:245px; padding:28px 18px; background:var(--cream); }
-        .brand { text-align:center; margin-bottom:30px; } .brand h1 { margin:0; color:var(--navy); } .brand small { color:#1b75bb; }
-        .nav a { display:block; padding:11px 13px; margin:5px 0; text-decoration:none; border-radius:8px; font-weight:600; }
-        .nav a:hover, .nav a.active { color:#fff; background:var(--navy); } .main { flex:1; padding:28px; background:var(--navy); }
-        .card { background:#fff; border-radius:16px; padding:28px; min-height:calc(100vh - 56px); } h2 { color:var(--navy); margin-top:0; }
-        .topbar { display:flex; justify-content:space-between; align-items:center; gap:15px; margin-bottom:25px; }
-        .button, button { border:0; border-radius:7px; padding:10px 15px; cursor:pointer; text-decoration:none; display:inline-block; background:var(--navy); color:#fff; font-weight:600; }
-        .button.secondary { background:#6b7280; } .button.warning { background:#b45309; } .button.success { background:#15803d; }
-        .table-wrap { overflow:auto; } table { width:100%; border-collapse:collapse; } th,td { padding:11px; border-bottom:1px solid #dbe7f0; text-align:left; }
-        th { background:var(--cream); color:var(--navy); } .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; }
-        label { display:block; font-weight:600; } input, select { width:100%; margin-top:6px; padding:10px; border:1px solid #a9c5d8; border-radius:6px; }
-        .field-full { grid-column:1/-1; } .actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .alert { padding:12px; border-radius:7px; background:#dff5e7; color:#166534; margin-bottom:16px; }
-        .errors { padding:12px; border-radius:7px; background:#fee2e2; color:#991b1b; margin-bottom:16px; } .muted { color:#5c7183; }
-        .panel-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:15px; } .panel-link { padding:20px; border:1px solid #c5ddeb; border-radius:10px; text-decoration:none; }
-        .inline { display:inline; } .pagination { margin-top:18px; }
-        @media(max-width:760px) { .app { display:block; } .sidebar { width:auto; } .main { padding:12px; } .card { min-height:0; } .form-grid { grid-template-columns:1fr; } }
-    </style>
+    <link rel="stylesheet" href="{{ asset('css/asagua-app.css') }}">
     @stack('styles')
 </head>
-<body>
+<body class="asagua-app">
 <div class="app">
     <aside class="sidebar">
-        <div class="brand"><h1>💧 ASAGUA</h1><small>Col. Las Flores, Mazariego y Suárez</small></div>
+        <a class="brand" href="{{ auth()->check() && auth()->user()->rol === 'Contador' ? route('portal.contador') : route('dashboard') }}" aria-label="ASAGUA, inicio">
+            <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M16 3C12 9 6 15 6 21a10 10 0 0 0 20 0c0-6-6-12-10-18Z" fill="currentColor"/><path d="M11 21c0 2.9 2.1 5 5 5" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <span class="brand-copy"><strong>ASAGUA</strong><small>Sistema de gestión</small></span>
+        </a>
         @auth
-            <nav class="nav">
+            <div class="sidebar-caption">ESPACIO DE TRABAJO</div>
+            <nav class="nav" aria-label="Navegación principal">
                 @section('sidebar-navigation')
-                <a href="{{ auth()->user()->rol === 'Contador' ? route('portal.contador') : route('dashboard') }}">🏠 Principal</a>
-                <a href="{{ route('catalogo.index') }}">📚 Catálogo de cuentas</a>
+                <a href="{{ auth()->user()->rol === 'Contador' ? route('portal.contador') : route('dashboard') }}" @class(['active' => request()->routeIs('portal.contador', 'dashboard', 'panel.*')])><span class="nav-icon" aria-hidden="true">⌂</span><span>Inicio</span></a>
+                <a href="{{ route('catalogo.index') }}" @class(['active' => request()->routeIs('catalogo.*')])><span class="nav-icon" aria-hidden="true">▤</span><span>Catálogo de cuentas</span></a>
                 @if(in_array(auth()->user()->rol, ['Contador', 'Auditor'], true))
-                    <a href="{{ route('partidas.index') }}">🧾 Partidas contables</a>
-                    <a href="{{ route('documentos.index') }}">📄 Documentos fuente</a>
-                    <a href="{{ route('libros.diario') }}">📖 Libro diario</a>
-                    <a href="{{ route('libros.mayor') }}">📚 Libro mayor</a>
-                    <a href="{{ route('balances.comprobacion') }}">📊 Balance de comprobación</a>
-                    <a href="{{ route('balances.general') }}">🏦 Balance general</a>
-                    <a href="{{ route('balances.resultados') }}">📈 Estado de resultados</a>
-                    @if(auth()->user()->rol === 'Contador')
-                        <a href="{{ route('hoja-trabajo.index') }}">🧮 Hoja de trabajo</a>
-                    @endif
+                    <a href="{{ route('partidas.index') }}" @class(['active' => request()->routeIs('partidas.index', 'partidas.show')])><span class="nav-icon" aria-hidden="true">▧</span><span>Partidas contables</span></a>
+                    <a href="{{ route('documentos.index') }}" @class(['active' => request()->routeIs('documentos.*')])><span class="nav-icon" aria-hidden="true">▣</span><span>Documentos fuente</span></a>
+                    <div class="nav-group-label">CONSULTAS E INFORMES</div>
+                    <a href="{{ route('libros.diario') }}" @class(['active' => request()->routeIs('libros.diario')])><span class="nav-icon" aria-hidden="true">≡</span><span>Libro diario</span></a>
+                    <a href="{{ route('libros.mayor') }}" @class(['active' => request()->routeIs('libros.mayor')])><span class="nav-icon" aria-hidden="true">▥</span><span>Libro mayor</span></a>
+                    <a href="{{ route('balances.comprobacion') }}" @class(['active' => request()->routeIs('balances.comprobacion')])><span class="nav-icon" aria-hidden="true">⊞</span><span>Balance de comprobación</span></a>
+                    <a href="{{ route('balances.general') }}" @class(['active' => request()->routeIs('balances.general')])><span class="nav-icon" aria-hidden="true">▦</span><span>Balance general</span></a>
+                    <a href="{{ route('balances.resultados') }}" @class(['active' => request()->routeIs('balances.resultados')])><span class="nav-icon" aria-hidden="true">↗</span><span>Estado de resultados</span></a>
+                    @if(auth()->user()->rol === 'Contador')<a href="{{ route('hoja-trabajo.index') }}" @class(['active' => request()->routeIs('hoja-trabajo.*')])><span class="nav-icon" aria-hidden="true">▦</span><span>Hoja de trabajo</span></a>@endif
                 @endif
                 @if(auth()->user()->rol === 'Contador')
-                    <a href="{{ route('partidas.create') }}">＋ Registrar partida</a>
-                    <a href="{{ route('ajustes.index') }}">⚙ Ajustes contables</a>
-                    
+                    <div class="nav-group-label">GESTIÓN CONTABLE</div>
+                    <a href="{{ route('partidas.create') }}" @class(['active' => request()->routeIs('partidas.create', 'partidas.store')])><span class="nav-icon" aria-hidden="true">＋</span><span>Registrar partida</span></a>
+                    <a href="{{ route('ajustes.index') }}" @class(['active' => request()->routeIs('ajustes.*')])><span class="nav-icon" aria-hidden="true">⚙</span><span>Ajustes contables</span></a>
                 @endif
                 @if(auth()->user()->rol === 'Admin')
-                    <a href="{{ route('admin.users.index') }}">👥 Gestión de Usuarios</a>
+                    <a href="{{ route('admin.users.index') }}" @class(['active' => request()->routeIs('admin.users.*')])><span class="nav-icon" aria-hidden="true">♙</span><span>Gestión de usuarios</span></a>
                 @endif
                 @show
             </nav>
-            <form method="POST" action="{{ route('logout') }}" style="margin-top:35px">
-                @csrf <button type="submit" class="button secondary" style="width:100%">🚪 Cerrar sesión</button>
-            </form>
-        @endif
+            <div class="sidebar-bottom"><div class="sidebar-note"><span class="status-dot"></span><span>Plataforma ASAGUA<small>Gestión institucional</small></span></div>
+                <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit" class="logout-button"><span aria-hidden="true">↪</span> Cerrar sesión</button></form>
+            </div>
+        @endauth
     </aside>
-    <main class="main"><section class="card">
-        @if(session('status')) <div class="alert">{{ session('status') }}</div> @endif
-        @if(session('error')) <div class="errors">{{ session('error') }}</div> @endif
-        @if($errors->any())
-            <div class="errors"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
-        @endif
-        @yield('content')
-    </section></main>
+    <main class="main">
+        @auth
+            @php($routeTitle = match (true) {
+                request()->routeIs('ingenieria-economica.*') => 'Ingeniería Económica',
+                request()->routeIs('balances.*') => 'Estados financieros',
+                request()->routeIs('libros.*') => 'Libros contables',
+                request()->routeIs('partidas.*') => 'Partidas contables',
+                request()->routeIs('documentos.*') => 'Documentos fuente',
+                request()->routeIs('catalogo.*') => 'Catálogo de cuentas',
+                request()->routeIs('admin.users.*') => 'Gestión de usuarios',
+                request()->routeIs('ajustes.*') => 'Ajustes contables',
+                request()->routeIs('hoja-trabajo.*') => 'Hoja de trabajo',
+                default => 'Panel de trabajo',
+            })
+            <header class="app-topbar"><div class="topbar-context"><span class="topbar-kicker">ASAGUA <span aria-hidden="true">/</span> <span>@yield('section-name', $routeTitle)</span></span><span class="topbar-date">Sistema administrativo y contable</span></div>
+                <div class="topbar-user"><span class="user-avatar">{{ substr(auth()->user()->nombre ?? 'U', 0, 1) }}{{ substr(auth()->user()->apellido ?? '', 0, 1) }}</span><span class="user-details"><strong>{{ auth()->user()->nombre }} {{ auth()->user()->apellido }}</strong><small>{{ auth()->user()->rol }}</small></span></div>
+            </header>
+        @endauth
+        <section class="card">
+            @if(session('status')) <div class="alert" role="status">{{ session('status') }}</div> @endif
+            @if(session('error')) <div class="errors" role="alert">{{ session('error') }}</div> @endif
+            @if($errors->any())<div class="errors" role="alert"><strong>Revisa la información ingresada.</strong><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+            @yield('content')
+        </section>
+        <footer class="app-footer"><span class="footer-brand"><span class="footer-mark" aria-hidden="true">A</span><span><strong>ASAGUA</strong><small>Sistema institucional de gesti&oacute;n</small></span></span><span class="footer-meta"><i></i> Plataforma de uso interno</span></footer>
+    </main>
 </div>
 </body>
 </html>
