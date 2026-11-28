@@ -16,7 +16,7 @@ class Partida extends Model
     protected $primaryKey = 'id_partida';
     public $timestamps = false;
 
-    protected $fillable = ['id_usuario', 'numero_partida', 'fecha', 'concepto'];
+    protected $fillable = ['id_usuario', 'numero_partida', 'fecha', 'concepto', 'tipo_ajuste'];
 
     protected function casts(): array
     {
@@ -35,21 +35,12 @@ class Partida extends Model
 
     public function scopeAjustes(Builder $query): Builder
     {
-        return $query->where('concepto', 'like', '[AJUSTE:%');
+        return $query->whereNotNull('tipo_ajuste');
     }
 
     public function esAjuste(): bool
     {
-        return preg_match('/^\[AJUSTE:[^\]]+\]/', (string) $this->concepto) === 1;
-    }
-
-    public function getTipoAjusteAttribute(): ?string
-    {
-        if (preg_match('/^\[AJUSTE:([^\]]+)\]/', (string) $this->concepto, $matches) !== 1) {
-            return null;
-        }
-
-        return $matches[1];
+        return $this->tipo_ajuste !== null;
     }
 
     public function getConceptoAjusteAttribute(): string

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Carbon;
+
 class HojaTrabajoContableService
 {
     public function __construct(private readonly LibroContableService $libros)
@@ -14,7 +16,7 @@ class HojaTrabajoContableService
         $filas = [];
 
         foreach ($this->libros->diario($fechaInicio, $fechaFin) as $movimiento) {
-            $clave = $movimiento['codigo_cuenta'].'\0'.$movimiento['nombre_cuenta'];
+            $clave = $movimiento['id_cuenta'];
             $filas[$clave] ??= $this->filaBase(
                 (string) $movimiento['codigo_cuenta'],
                 (string) $movimiento['nombre_cuenta'],
@@ -26,31 +28,43 @@ class HojaTrabajoContableService
             $filas[$clave][$columna]['haber'] += $this->centavos((string) $movimiento['haber']);
         }
 
+        if ($fechaInicio !== null && $fechaInicio !== '') {
+            $diaAnterior = Carbon::parse($fechaInicio)->subDay()->toDateString();
+            foreach ($this->libros->balanceComprobacion(null, $diaAnterior)['cuentas'] as $saldo) {
+                $clave = $saldo['id_cuenta'];
+                $filas[$clave] ??= $this->filaBase($saldo['codigo'], $saldo['cuenta'], $saldo['tipo']);
+                $filas[$clave]['saldo_inicial'] = [
+                    'debe' => $this->centavos($saldo['saldo_deudor']),
+                    'haber' => $this->centavos($saldo['saldo_acreedor']),
+                ];
+            }
+        }
+
         foreach ($filas as &$fila) {
             $fila['balance_ajustado']['debe'] =
-                $fila['balance_comprobacion']['debe'] + $fila['ajustes']['debe'];
+                $fila['saldo_inicial']['debe'] + $fila['balance_comprobacion']['debe'] + $fila['ajustes']['debe'];
             $fila['balance_ajustado']['haber'] =
-                $fila['balance_comprobacion']['haber'] + $fila['ajustes']['haber'];
+                $fila['saldo_inicial']['haber'] + $fila['balance_comprobacion']['haber'] + $fila['ajustes']['haber'];
         }
         unset($fila);
 
         $estado = $this->libros->estadoResultados($fechaInicio, $fechaFin);
         foreach ($estado['ingresos'] as $item) {
-            $this->agregarResultado($filas, $item['cuenta'], 'Ingreso', $item['saldo'], false);
+            $this->agregarResultado($filas, $item, 'Ingreso', $item['saldo'], false);
         }
         foreach ($estado['gastos'] as $item) {
-            $this->agregarResultado($filas, $item['cuenta'], 'Gasto', $item['saldo'], true);
+            $this->agregarResultado($filas, $item, 'Gasto', $item['saldo'], true);
         }
 
         $balance = $this->libros->balanceGeneral($fechaInicio, $fechaFin);
         foreach (['AC_CORRIENTE', 'AC_NO_CORRIENTE'] as $seccion) {
             foreach ($balance[$seccion] as $item) {
-                $this->agregarBalanceGeneral($filas, $item['cuenta'], 'Activo', $item['saldo'], true);
+                $this->agregarBalanceGeneral($filas, $item, 'Activo', $item['saldo'], true);
             }
         }
-        foreach (['PAS_CORRIENTE', 'PATRIMONIO'] as $seccion) {
+        foreach (['PAS_CORRIENTE', 'PAS_NO_CORRIENTE', 'PATRIMONIO'] as $seccion) {
             foreach ($balance[$seccion] as $item) {
-                $this->agregarBalanceGeneral($filas, $item['cuenta'], $seccion === 'PATRIMONIO' ? 'Patrimonio' : 'Pasivo', $item['saldo'], false);
+                $this->agregarBalanceGeneral($filas, $item, $seccion === 'PATRIMONIO' ? 'Patrimonio' : 'Pasivo', $item['saldo'], false);
             }
         }
 
@@ -61,6 +75,7 @@ class HojaTrabajoContableService
         $this->formatearFilas($filas);
 
         $totales = [
+            'saldo_inicial' => $this->totales($filas, 'saldo_inicial'),
             'balance_comprobacion' => $this->totales($filas, 'balance_comprobacion'),
             'ajustes' => $this->totales($filas, 'ajustes'),
             'balance_ajustado' => $this->totales($filas, 'balance_ajustado'),
@@ -89,6 +104,7 @@ class HojaTrabajoContableService
             'codigo' => $codigo,
             'cuenta' => $cuenta,
             'tipo' => $tipo,
+            'saldo_inicial' => ['debe' => 0, 'haber' => 0],
             'balance_comprobacion' => ['debe' => 0, 'haber' => 0],
             'ajustes' => ['debe' => 0, 'haber' => 0],
             'balance_ajustado' => ['debe' => 0, 'haber' => 0],
@@ -98,13 +114,10 @@ class HojaTrabajoContableService
     }
 
     /** @param array<string, array<string, mixed>> $filas */
-    private function agregarResultado(array &$filas, string $cuenta, string $tipo, string $saldo, bool $deudora): void
+    private function agregarResultado(array &$filas, array $cuenta, string $tipo, string $saldo, bool $deudora): void
     {
-        $clave = $this->buscarClave($filas, $cuenta);
-        if ($clave === null) {
-            $clave = '0\0'.$cuenta;
-            $filas[$clave] = $this->filaBase('', $cuenta, $tipo);
-        }
+        $clave = $cuenta['id_cuenta'] ?? 'resultado';
+        $filas[$clave] ??= $this->filaBase($cuenta['codigo'], $cuenta['cuenta'], $tipo);
 
         $importe = $this->centavos($saldo);
         if (($deudora && $importe >= 0) || (! $deudora && $importe < 0)) {
@@ -115,13 +128,10 @@ class HojaTrabajoContableService
     }
 
     /** @param array<string, array<string, mixed>> $filas */
-    private function agregarBalanceGeneral(array &$filas, string $cuenta, string $tipo, string $saldo, bool $deudora): void
+    private function agregarBalanceGeneral(array &$filas, array $cuenta, string $tipo, string $saldo, bool $deudora): void
     {
-        $clave = $this->buscarClave($filas, $cuenta);
-        if ($clave === null) {
-            $clave = '0\0'.$cuenta;
-            $filas[$clave] = $this->filaBase('', $cuenta, $tipo);
-        }
+        $clave = $cuenta['id_cuenta'] ?? 'resultado';
+        $filas[$clave] ??= $this->filaBase($cuenta['codigo'], $cuenta['cuenta'], $tipo);
 
         $importe = $this->centavos($saldo);
         if (($deudora && $importe >= 0) || (! $deudora && $importe < 0)) {
@@ -132,22 +142,11 @@ class HojaTrabajoContableService
     }
 
     /** @param array<string, array<string, mixed>> $filas */
-    private function buscarClave(array $filas, string $cuenta): ?string
-    {
-        foreach ($filas as $clave => $fila) {
-            if ($fila['cuenta'] === $cuenta) {
-                return $clave;
-            }
-        }
-
-        return null;
-    }
-
     /** @param array<int, array<string, mixed>> $filas */
     private function formatearFilas(array &$filas): void
     {
         foreach ($filas as &$fila) {
-            foreach (['balance_comprobacion', 'ajustes', 'balance_ajustado', 'estado_resultados', 'balance_general'] as $seccion) {
+            foreach (['saldo_inicial', 'balance_comprobacion', 'ajustes', 'balance_ajustado', 'estado_resultados', 'balance_general'] as $seccion) {
                 $fila[$seccion]['debe'] = $this->formatear($fila[$seccion]['debe']);
                 $fila[$seccion]['haber'] = $this->formatear($fila[$seccion]['haber']);
             }

@@ -47,6 +47,7 @@ class ReportePdfTest extends TestCase
             'numero_partida' => 1,
             'fecha' => '2026-02-10',
             'concepto' => '[AJUSTE:Depreciaciones] Ajuste',
+            'tipo_ajuste' => 'Depreciaciones',
         ]);
         $partida->detalles()->create([
             'id_cuenta' => $ids['caja'],
@@ -126,7 +127,7 @@ class ReportePdfTest extends TestCase
     public function test_auditor_can_download_income_statement_pdf_with_adjustment(): void
     {
         [$usuario, $ids] = $this->catalogo('Auditor');
-        $partida = $this->partida($usuario, 1, '2026-04-01', '[AJUSTE:Depreciaciones] Ajuste');
+        $partida = $this->partida($usuario, 1, '2026-04-01', '[AJUSTE:Depreciaciones] Ajuste', 'Depreciaciones');
         $partida->detalles()->createMany([
             ['id_cuenta' => $ids['ingreso'], 'id_usuario' => $usuario->id_usuario, 'debe' => '0.00', 'haber' => '80.00'],
             ['id_cuenta' => $ids['gasto'], 'id_usuario' => $usuario->id_usuario, 'debe' => '30.00', 'haber' => '0.00'],
@@ -164,13 +165,14 @@ class ReportePdfTest extends TestCase
         return [$usuario, ['caja' => 11, 'ingreso' => 16, 'gasto' => 17]];
     }
 
-    private function partida(User $usuario, int $numero, string $fecha, string $concepto): Partida
+    private function partida(User $usuario, int $numero, string $fecha, string $concepto, ?string $tipoAjuste = null): Partida
     {
         return Partida::create([
             'id_usuario' => $usuario->id_usuario,
             'numero_partida' => $numero,
             'fecha' => $fecha,
             'concepto' => $concepto,
+            'tipo_ajuste' => $tipoAjuste,
         ]);
     }
 

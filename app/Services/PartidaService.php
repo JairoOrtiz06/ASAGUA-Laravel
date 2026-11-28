@@ -7,6 +7,7 @@ use App\Models\DetallePartida;
 use App\Models\DocumentoFuente;
 use App\Models\Partida;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,9 +22,16 @@ class PartidaService
      * Persists a complete journal entry as one PostgreSQL transaction.
      * Monetary values are normalized to integer cents; no float is used.
      */
-    public function registrar(User $usuario, array $data): Partida
+    public function registrar(User $usuario, array $data, ?string $tipoAjuste = null): Partida
     {
-        return DB::transaction(function () use ($usuario, $data): Partida {
+        return DB::transaction(function () use ($usuario, $data, $tipoAjuste): Partida {
+            self::bloquearRegistro();
+            $fecha = Carbon::parse($data['fecha'])->toDateString();
+            $cierre = $this->ultimoCierre();
+            if ($cierre !== null && $fecha <= $cierre) {
+                throw ValidationException::withMessages(['fecha' => 'La fecha corresponde a un período contable cerrado.']);
+            }
+
             // Account validity is checked before reading or normalizing any
             // monetary value, so an invalid account always reports the account
             // problem first and cannot be masked by an invalid amount later on.
@@ -32,17 +40,12 @@ class PartidaService
             $detalles = $this->normalizarDetalles($detallesEntrada);
             $this->validarEquilibrio($detalles);
 
-            if (DB::connection()->getDriverName() === 'pgsql') {
-                // The Python flow serializes adjustment numbering. Apply the
-                // same protection to ordinary entries in the web application.
-                DB::statement('LOCK TABLE tblpartidas IN SHARE ROW EXCLUSIVE MODE');
-            }
-
             $numero = ((int) (DB::table('tblpartidas')->max('numero_partida') ?? 0)) + 1;
             $partida = Partida::create([
                 'id_usuario' => $usuario->getKey(),
                 'numero_partida' => $numero,
-                'fecha' => $data['fecha'],
+                'fecha' => $fecha,
+                'tipo_ajuste' => $tipoAjuste,
                 'concepto' => trim((string) ($data['concepto'] ?? '')) ?: 'Asiento contable',
             ]);
 
@@ -71,6 +74,35 @@ class PartidaService
             }
 
             return $partida->load(['usuario', 'detalles.cuenta']);
+        });
+    }
+
+    public static function bloquearRegistro(): void
+    {
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('LOCK TABLE tblpartidas IN SHARE ROW EXCLUSIVE MODE');
+        }
+    }
+
+    public function ultimoCierre(): ?string
+    {
+        return DB::table('tblcierres_contables')->max('fecha_corte');
+    }
+
+    public function cerrarHasta(User $usuario, string $fecha): void
+    {
+        DB::transaction(function () use ($usuario, $fecha): void {
+            self::bloquearRegistro();
+            $ultimo = $this->ultimoCierre();
+            if ($ultimo !== null && $fecha <= $ultimo) {
+                throw ValidationException::withMessages(['fecha_corte' => 'La fecha debe ser posterior al último cierre.']);
+            }
+
+            DB::table('tblcierres_contables')->insert([
+                'fecha_corte' => $fecha,
+                'id_usuario' => $usuario->getKey(),
+                'registrado_en' => now(),
+            ]);
         });
     }
 

@@ -71,7 +71,7 @@ class AjusteTest extends TestCase
         [$debe, $haber] = $this->cuentasActivas();
         $inactiva = CuentaContable::create([
             'codigo_cuenta' => '9999', 'nombre_cuenta' => 'Cuenta inactiva',
-            'tipo_cuenta' => 'Activo', 'nivel' => 3, 'estado' => false,
+            'tipo_cuenta' => 'Activo', 'nivel' => 4, 'estado' => false,
         ]);
         $datos = $this->datos($debe->id_cuenta, $haber->id_cuenta);
         $datos['detalles'][1]['id_cuenta'] = $inactiva->id_cuenta;
@@ -144,11 +144,11 @@ class AjusteTest extends TestCase
         return [
             CuentaContable::create([
                 'codigo_cuenta' => '6101', 'nombre_cuenta' => 'Gasto depreciación',
-                'tipo_cuenta' => 'Gasto', 'nivel' => 3, 'estado' => true,
+                'tipo_cuenta' => 'Gasto', 'nivel' => 4, 'estado' => true,
             ]),
             CuentaContable::create([
                 'codigo_cuenta' => '1701', 'nombre_cuenta' => 'Depreciación acumulada',
-                'tipo_cuenta' => 'Activo', 'nivel' => 3, 'estado' => true,
+                'tipo_cuenta' => 'Activo', 'nivel' => 4, 'estado' => true,
             ]),
         ];
     }

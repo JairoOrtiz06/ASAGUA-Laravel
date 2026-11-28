@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Partida;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class AjusteService
@@ -30,9 +31,9 @@ class AjusteService
             ]);
         }
 
-        $periodoInicio = (string) $data['periodo_inicio'];
-        $periodoFin = (string) $data['periodo_fin'];
-        $fecha = (string) $data['fecha'];
+        $periodoInicio = Carbon::parse($data['periodo_inicio'])->toDateString();
+        $periodoFin = Carbon::parse($data['periodo_fin'])->toDateString();
+        $fecha = Carbon::parse($data['fecha'])->toDateString();
         $tipo = trim((string) ($data['tipo'] ?? ''));
         $concepto = trim((string) ($data['concepto'] ?? ''));
 
@@ -70,6 +71,6 @@ class AjusteService
             'fecha' => $fecha,
             'concepto' => '[AJUSTE:'.$tipo.'] '.$concepto,
             'detalles' => $detalles,
-        ]);
+        ], $tipo);
     }
 }

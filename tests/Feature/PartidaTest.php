@@ -45,6 +45,33 @@ class PartidaTest extends TestCase
         ]);
     }
 
+    public function test_closing_blocks_backdated_entries_and_ordinary_concept_does_not_set_adjustment_type(): void
+    {
+        $usuario = User::factory()->create(['rol' => 'Contador']);
+        [$debe, $haber] = $this->cuentasActivas();
+
+        $this->actingAs($usuario)->post(route('hoja-trabajo.cerrar'), [
+            'fecha_corte' => today()->subDays(2)->toDateString(),
+            'confirmar_cierre' => '1',
+        ])->assertRedirect(route('hoja-trabajo.index'));
+
+        $datos = [
+            'fecha' => today()->subDays(2)->toDateString(),
+            'concepto' => '[AJUSTE:Depreciaciones] Partida ordinaria',
+            'detalles' => [
+                ['id_cuenta' => $debe->id_cuenta, 'debe' => '100.00', 'haber' => '0.00'],
+                ['id_cuenta' => $haber->id_cuenta, 'debe' => '0.00', 'haber' => '100.00'],
+            ],
+        ];
+
+        $this->post(route('partidas.store'), $datos)->assertSessionHasErrors('fecha');
+        $this->assertDatabaseCount('tblpartidas', 0);
+
+        $datos['fecha'] = today()->subDay()->toDateString();
+        $this->post(route('partidas.store'), $datos)->assertSessionHasNoErrors();
+        $this->assertFalse(Partida::query()->sole()->esAjuste());
+    }
+
     public function test_partida_can_use_an_existing_document_for_one_detail(): void
     {
         $usuario = User::factory()->create(['rol' => 'Contador']);

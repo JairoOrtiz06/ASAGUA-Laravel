@@ -168,6 +168,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureUserIsActive::class])->gro
 
     Route::middleware('role:Contador')->group(function (): void {
         Route::get('/hoja-trabajo', [HojaTrabajoController::class, 'index'])->name('hoja-trabajo.index');
+        Route::post('/hoja-trabajo/cierre', [HojaTrabajoController::class, 'cerrar'])->name('hoja-trabajo.cerrar');
         Route::get('/partidas/registrar', [PartidaController::class, 'create'])->name('partidas.create');
         Route::post('/partidas', [PartidaController::class, 'store'])->name('partidas.store');
         Route::get('/ajustes', [AjusteController::class, 'index'])->name('ajustes.index');
