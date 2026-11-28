@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Concepto;
 @endphp
@@ -10,9 +12,9 @@
         <h2>Registrar ajuste manual</h2>
         <p class="muted">{{ $proyecto->nombre }} · Se conserva al volver a generar los flujos.</p>
     </div>
-    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.flujos.index', ['proyecto' => $proyecto] + $datos) }}">← Flujos</a>
+    <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('flujos.index', ['proyecto' => $proyecto] + $datos) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Flujos</a>
 </div>
-<form class="panel-link economia-form" method="POST" action="{{ route('ingenieria-economica.proyectos.ajustes-flujo.store', $proyecto) }}">
+<form class="panel-link economia-form" method="POST" action="{{ ContextoEvaluacion::enlace('ajustes-flujo.store', $proyecto) }}">
     @csrf
     <div class="form-grid">
         @include('ingenieria-economica._campo', ['campo' => 'escenario_id', 'etiqueta' => 'Escenario', 'tipo' => 'select', 'opciones' => $escenarios, 'valor' => $datos['escenario_id'] ?? null, 'obligatorio' => true])

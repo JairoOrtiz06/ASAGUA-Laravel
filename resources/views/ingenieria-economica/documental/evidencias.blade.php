@@ -1,10 +1,38 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @section('economia-content')
-@include('ingenieria-economica.documental._cabecera',['titulo'=>'Evidencias documentales'])
+@php
+    $registro = $destino['id'] ?? null;
+    [$rutaRegreso, $volverTexto, $parametrosRegreso] = match ($contexto['origen'] ?? null) {
+        'informes' => ['informes.index', 'Volver a informes', []],
+        'validacion' => ['validacion', 'Volver a validación', []],
+        'referencias' => ['referencias', 'Volver a referencias', []],
+        default => match ($destino ? ($filtros['tipo'] ?? null) : null) {
+            'escenario' => ['escenarios.index', 'Volver a escenarios', []],
+            'alternativa' => ['alternativas.index', 'Volver a alternativas', []],
+            'concepto' => ($contexto['origen'] ?? null) === 'editar-concepto'
+                ? ['conceptos.edit', 'Volver a editar concepto', [$registro]]
+                : ['conceptos.show', 'Volver al concepto', [$registro]],
+            'activo' => match ($contexto['origen'] ?? null) {
+                'editar-activo' => ['activos.edit', 'Volver a editar activo', [$registro]],
+                'reemplazo' => ['activos.reemplazo', 'Volver al análisis de reemplazo', [$registro]],
+                default => ['activos.show', 'Volver al activo', [$registro]],
+            },
+            'evaluacion' => ['evaluaciones.show', 'Volver a la evaluación', [$registro]],
+            default => ['show', 'Volver al proyecto', []],
+        },
+    };
+@endphp
+@include('ingenieria-economica.documental._cabecera', [
+    'titulo' => 'Evidencias documentales',
+    'volverTexto' => $volverTexto,
+    'volverUrl' => ContextoEvaluacion::enlace($rutaRegreso, [$proyecto, ...$parametrosRegreso]),
+])
 <div class="actions">
-    <a class="button" href="{{ route('ingenieria-economica.proyectos.evidencias.create',$proyecto) }}">Registrar evidencia</a>
-    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.referencias',$proyecto) }}">Referencias contables</a>
+    <a class="button" href="{{ ContextoEvaluacion::enlace('evidencias.create',[$proyecto, ...$contexto]) }}">Registrar evidencia</a>
+    <a class="button secondary" href="{{ ContextoEvaluacion::enlace('referencias',$proyecto) }}">Referencias contables</a>
 </div>
 @if ($destino)
     <p class="section"><strong>{{ $destino['etiqueta'] }}</strong> · Las evidencias ya vinculadas aparecen primero. Selecciona una evidencia para revisar o confirmar el vínculo.</p>
@@ -12,7 +40,7 @@
 <div class="section table-wrap"><table>
     <thead><tr><th>Evidencia</th><th>Procedencia</th><th>Fecha</th><th>Calidad del dato</th><th>Estado del documento</th></tr></thead>
     <tbody>@forelse ($evidencias as $e)
-        <tr><th scope="row"><a href="{{ route('ingenieria-economica.proyectos.evidencias.show',[$proyecto,$e,...array_intersect_key($filtros,['tipo'=>true,'registro'=>true])]).($destino ? '#confirmar-vinculo' : '') }}">{{ $e->titulo }}</a>@if ($destino && $e->vinculado_al_destino) · Vinculada @endif</th>
+        <tr><th scope="row"><a href="{{ ContextoEvaluacion::enlace('evidencias.show',[$proyecto,$e,...$contexto]).($destino ? '#confirmar-vinculo' : '') }}">{{ $e->titulo }}</a>@if ($destino && $e->vinculado_al_destino) · Vinculada @endif</th>
             <td>{{ $e->procedencia }}</td><td>{{ $e->fecha_documento->format('d/m/Y') }}</td>
             <td>{{ $e::CALIDADES[$e->calidad] }}</td><td>{{ $e::ESTADOS[$e->estado] }}</td></tr>
     @empty
@@ -32,7 +60,7 @@
                         <li>{{ $fuente->referencia }} · {{ $fuente->fecha?->format('d/m/Y') }}. {{ $fuente->justificacion }}</li>
                     @endforeach</ul>
                     @include('ingenieria-economica.documental._respaldo-central',['respaldo'=>$centrales->get($tipoFuente.':'.$item->id, collect())])
-                    <a href="{{ route('ingenieria-economica.proyectos.evidencias.index',[$proyecto,'tipo'=>$tipoFuente,'registro'=>$item->id]) }}">Revisar o vincular evidencia</a>
+                    <a href="{{ ContextoEvaluacion::enlace('evidencias.index',[$proyecto,'tipo'=>$tipoFuente,'registro'=>$item->id]) }}">Revisar o vincular evidencia</a>
                 </li>
             @endforeach
         @endforeach
@@ -45,7 +73,11 @@
 <section class="section panel-link">
     <h3>Fuentes de evaluaciones guardadas</h3>
     @if ($versiones->isNotEmpty())
-        <form class="actions" method="GET" action="{{ route('ingenieria-economica.proyectos.evidencias.index',$proyecto) }}">
+        <form class="actions" method="GET" action="{{ ContextoEvaluacion::enlace('evidencias.index',$proyecto) }}">
+            @include('ingenieria-economica._contexto-campos')
+            @foreach (array_diff_key($contexto, ['evaluacion_fuentes' => true]) as $clave => $valor)
+                <input type="hidden" name="{{ $clave }}" value="{{ $valor }}">
+            @endforeach
             <label for="evaluacion-fuentes">Versión de evaluación</label>
             <select id="evaluacion-fuentes" name="evaluacion_fuentes">
                 @if ($evaluacion && ! $versiones->contains('id', $evaluacion->id))
@@ -66,7 +98,7 @@
     @endif
     @if ($evaluacion)
         @php($captura = $evaluacion->instantanea)
-        <p><a href="{{ route('ingenieria-economica.proyectos.evaluaciones.show',[$proyecto,$evaluacion]) }}">Ver evaluación #{{ $evaluacion->id }}</a>
+        <p><a href="{{ ContextoEvaluacion::enlace('evaluaciones.show',[$proyecto,$evaluacion]) }}">Ver evaluación #{{ $evaluacion->id }}</a>
             · TMAR {{ $captura['escenario']['fuente_tasa'] ?? 'sin fuente registrada' }}.</p>
         @if (isset($captura['fiscal']['fuente']))<p>Fuente tributaria · {{ $captura['fiscal']['fuente']['titulo'] }}.</p>@endif
         <ul>@foreach ($captura['origenes'] as $fuenteOrigen)
@@ -75,7 +107,7 @@
             @endforeach
         @endforeach</ul>
         @include('ingenieria-economica.documental._respaldo-central',['respaldo'=>$centrales->get('evaluacion:'.$evaluacion->id, collect())])
-        <a href="{{ route('ingenieria-economica.proyectos.evidencias.index',[$proyecto,'tipo'=>'evaluacion','registro'=>$evaluacion->id,'evaluacion_fuentes'=>$evaluacion->id]) }}">Revisar o vincular respaldo de evaluación</a>
+        <a href="{{ ContextoEvaluacion::enlace('evidencias.index',[$proyecto,'tipo'=>'evaluacion','registro'=>$evaluacion->id,'evaluacion_fuentes'=>$evaluacion->id]) }}">Revisar o vincular respaldo de evaluación</a>
     @else
         <p>Aún no hay evaluaciones guardadas.</p>
     @endif

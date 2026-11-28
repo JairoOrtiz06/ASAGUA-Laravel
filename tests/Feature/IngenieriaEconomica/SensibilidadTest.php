@@ -119,6 +119,7 @@ class SensibilidadTest extends TestCase
         [$p, $e, $a, $b, $soporte, , $u] = $this->proyecto();
         [$otro, $otroEscenario, , , , , $ajeno] = $this->proyecto();
         $d = $this->datos($e->id, [$a->id, $b->id], 'unidimensional', [['variable'=>'monto:'.$soporte->id,'modo'=>'absoluto','valores'=>'25 50']]);
+        $d['referencia_id'] = $a->id;
         $this->get(route(self::R.'index', $p))->assertRedirectToRoute('login');
         $this->actingAs($u)->get(route(self::R.'index', $p))->assertOk();
         $this->get(route(self::R.'create', $p))->assertOk()->assertSee('Cargar variables de la base')->assertSee('Soporte');
@@ -142,6 +143,21 @@ class SensibilidadTest extends TestCase
             'sensibilidad_id' => $s->id,
             'estado' => 'preliminar',
         ])->assertOk()->assertSee('Análisis de sensibilidad')->assertSee('1462.55');
+        $validacion = $this->get(route('ingenieria-economica.proyectos.validacion', [
+            $p, 'evaluacion_id' => $registro->id, 'sensibilidad_id' => $s->id,
+        ]))->assertOk();
+        $this->assertNull($validacion->viewData('aviso'));
+
+        $otraBase = $hist;
+        $otraBase['referencia'] = $b->id;
+        $otraVersion = $registro->replicate();
+        $otraVersion->instantanea = $otraBase;
+        $otraVersion->save();
+        $discrepancia = [$p, 'evaluacion_id' => $otraVersion->id, 'sensibilidad_id' => $s->id];
+        foreach (['validacion', 'informes.index'] as $pantalla) {
+            $this->get(route('ingenieria-economica.proyectos.'.$pantalla, $discrepancia))
+                ->assertOk()->assertSee('La sensibilidad debe usar la misma alternativa de referencia');
+        }
         $soporte->update(['monto'=>'60']);
         $this->post(route(self::R.'store', $p), $guardar)->assertSessionHasErrors('sensibilidad');
         $this->get(route(self::R.'show', [$p, $s, 'memoria'=>0]))->assertOk()->assertSee('Memoria de cálculo');

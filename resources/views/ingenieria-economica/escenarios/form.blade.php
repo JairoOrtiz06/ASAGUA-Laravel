@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @section('economia-content')
 @php
     use App\Services\IngenieriaEconomica\DecimalFinanciero;
@@ -11,7 +13,7 @@
         <h2>{{ $editando ? 'Editar escenario' : 'Nuevo escenario' }}</h2>
         <p class="muted">{{ $proyecto->nombre }}</p>
     </div>
-    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.show', $proyecto) . '#escenarios' }}">← Volver</a>
+    <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('escenarios.index', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Volver a escenarios</a>
 </div>
 
 @if ($editando && $escenario->horizonte_anios > ProyeccionFlujosService::MAX_ANIOS)
@@ -20,8 +22,8 @@
     <p class="economia-aviso">El horizonte del proyecto está fuera del rango operativo. Indica un horizonte válido para este escenario.</p>
 @endif
 <section class="panel-link economia-form">
-    <form method="POST" action="{{ $editando ? route('ingenieria-economica.proyectos.escenarios.update', [$proyecto, $escenario]) : route('ingenieria-economica.proyectos.escenarios.store', $proyecto) }}"
-        data-vista-previa="{{ route('ingenieria-economica.proyectos.escenarios.previsualizar', $proyecto) }}" data-vista-inicial="{{ $editando ? 1 : 0 }}">
+    <form method="POST" action="{{ $editando ? ContextoEvaluacion::enlace('escenarios.update', [$proyecto, $escenario]) : ContextoEvaluacion::enlace('escenarios.store', $proyecto) }}"
+        data-vista-previa="{{ ContextoEvaluacion::enlace('escenarios.previsualizar', $proyecto) }}" data-vista-inicial="{{ $editando ? 1 : 0 }}">
         @csrf
         @if ($editando)
             @method('PATCH')
@@ -114,7 +116,11 @@
                     Completa la tasa original, la modalidad y su periodicidad.
                 @endif
             </div>
-            <div class="actions section"><button type="button" class="button secondary" data-actualizar>Actualizar vista previa</button></div>
+            <div class="actions section">
+                <button type="button" class="button secondary" data-actualizar>Actualizar vista previa</button>
+                <a class="button secondary" href="{{ route('ingenieria-economica.herramientas.show', 'tasas') }}"
+                    target="_blank" rel="noopener">Conversión de tasas <span class="proyecto-solo-lector">(abre en una pestaña nueva)</span></a>
+            </div>
         </section>
         <div class="actions section">
             <button class="button" type="submit">Guardar escenario</button>

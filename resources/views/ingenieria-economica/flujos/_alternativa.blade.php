@@ -1,3 +1,5 @@
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Services\IngenieriaEconomica\DecimalFinanciero;
 @endphp
@@ -5,7 +7,7 @@
 <section class="section panel-link">
     <div class="topbar">
         <h3>{{ $resultado['alternativa']->nombre }}</h3>
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.conceptos.index', ['proyecto' => $proyecto, 'alternativa_id' => $resultado['alternativa']->id]) }}">Ver conceptos</a>
+        <a class="button secondary" href="{{ ContextoEvaluacion::enlace('conceptos.index', ['proyecto' => $proyecto, 'alternativa_id' => $resultado['alternativa']->id]) }}">Ver conceptos</a>
     </div>
     @if ($resultado['avisos'])
         <div class="section"><strong>Advertencias de la proyección</strong><ul>

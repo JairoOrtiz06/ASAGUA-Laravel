@@ -1,13 +1,19 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\VinculoDocumental;
 @endphp
 @section('economia-content')
-@include('ingenieria-economica.documental._cabecera',['titulo'=>$item->titulo])
+@include('ingenieria-economica.documental._cabecera', [
+    'titulo' => $item->titulo,
+    'volverTexto' => 'Volver a evidencias',
+    'volverUrl' => ContextoEvaluacion::enlace('evidencias.index', [$proyecto, ...$contexto]),
+])
 @if (in_array($item->estado, ['existente','pendiente'], true))
 
-        @include('ingenieria-economica._eliminar',['ruta'=>route('ingenieria-economica.proyectos.evidencias.destroy',[$proyecto,$item]),'nombre'=>$item->titulo,'accion'=>'Eliminar borrador','conserva'=>'Los documentos originales y las versiones históricas se conservan.'])
+        @include('ingenieria-economica._eliminar',['ruta'=>ContextoEvaluacion::enlace('evidencias.destroy',[$proyecto,$item, ...$contexto]),'nombre'=>$item->titulo,'accion'=>'Eliminar borrador','conserva'=>'Los documentos originales y las versiones históricas se conservan.'])
 @endif
 <dl class="panel-grid summary">
     <div class="panel-link"><dt>Procedencia</dt><dd>{{ $item->procedencia }}</dd></div>
@@ -18,7 +24,7 @@
 </dl>
 @if ($item->observaciones)<p class="description">{{ $item->observaciones }}</p>@endif
 @if ($item->archivo)
-    <p><a class="button" href="{{ route('ingenieria-economica.proyectos.evidencias.download',[$proyecto,$item]) }}">Descargar adjunto</a></p>
+    <p><a class="button" href="{{ ContextoEvaluacion::enlace('evidencias.download',[$proyecto,$item]) }}">Descargar adjunto</a></p>
     <p class="muted description">SHA-256 {{ $item->sha256 }}</p>
 @else
     <p class="muted">Sin adjunto en el expediente.</p>
@@ -27,14 +33,14 @@
     <p class="muted">{{ $faltaRespaldo }}</p>
 @endif
 @if (!$item->archivo)
-    <form class="section panel-link" method="POST" enctype="multipart/form-data" action="{{ route('ingenieria-economica.proyectos.evidencias.adjuntar',[$proyecto,$item]) }}">
+    <form class="section panel-link" method="POST" enctype="multipart/form-data" action="{{ ContextoEvaluacion::enlace('evidencias.adjuntar',[$proyecto,$item, ...$contexto]) }}">
         @csrf
         <label for="archivo">Adjuntar respaldo</label>
         <input id="archivo" name="archivo" type="file" accept="application/pdf,image/png,image/jpeg" required>
         <div class="actions section"><button class="button">Adjuntar archivo</button></div>
     </form>
 @endif
-<form class="section panel-link" id="revision" method="POST" action="{{ route('ingenieria-economica.proyectos.evidencias.estado',[$proyecto,$item]) }}">
+<form class="section panel-link" id="revision" method="POST" action="{{ ContextoEvaluacion::enlace('evidencias.estado',[$proyecto,$item, ...$contexto]) }}">
     @csrf
     <h3>Registrar revisión documental</h3>
     <p>Existente indica que se recibió un archivo. Revisado indica que se comprobó el contenido y la procedencia. Validado requiere revisión previa y un archivo o documento contable verificable.</p>
@@ -53,10 +59,10 @@
             @if ($v->conciliacion)<p>Conciliación · {{ VinculoDocumental::CONCILIACIONES[$v->conciliacion] }}</p>@endif
             @include('ingenieria-economica.documental._referencia',['ref'=>$datos[$v->id],'contable'=>$v->conciliacion !== null])
             <p class="description">{{ $v->nota }}</p>
-            <a href="{{ route('ingenieria-economica.proyectos.evidencias.show',[$proyecto,$item,'tipo'=>$v->tipo,'registro'=>$v->destino_id]).'#confirmar-vinculo' }}">Revisar vínculo</a>
+            <a href="{{ ContextoEvaluacion::enlace('evidencias.show',[$proyecto,$item,'tipo'=>$v->tipo,'registro'=>$v->destino_id]).'#confirmar-vinculo' }}">Revisar vínculo</a>
             <details class="section">
                 <summary>Desvincular {{ $v->etiqueta }}</summary>
-                <form method="POST" action="{{ route('ingenieria-economica.proyectos.evidencias.desvincular',[$proyecto,$item,$v->id]) }}"
+                <form method="POST" action="{{ ContextoEvaluacion::enlace('evidencias.desvincular',[$proyecto,$item,$v->id, ...$contexto]) }}"
                     onsubmit="return confirm(this.dataset.confirmacion)"
                     data-confirmacion="{{ '¿Desvincular «'.$v->etiqueta.'»? La evidencia, el archivo y el historial se conservan.' }}">
                     @csrf

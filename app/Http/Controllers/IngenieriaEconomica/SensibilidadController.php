@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\IngenieriaEconomica\SensibilidadRequest;
 use App\Models\IngenieriaEconomica\Proyecto;
 use App\Services\IngenieriaEconomica\BaseSensibilidadService;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Services\IngenieriaEconomica\GuardarEvaluacionService;
 use App\Services\IngenieriaEconomica\SensibilidadService;
 use App\Services\IngenieriaEconomica\VariablesSensibilidadService;
@@ -18,12 +19,10 @@ use Illuminate\View\View;
 
 class SensibilidadController extends Controller
 {
-    private const RUTA = 'ingenieria-economica.proyectos.sensibilidad.';
-
     public function index(Proyecto $proyecto): View
     {
         Gate::authorize('view', $proyecto);
-        $analisis = $proyecto->analisisSensibilidad()->select(['id', 'nombre', 'estado', 'perspectiva', 'created_at'])->latest('id')->paginate(20);
+        $analisis = $proyecto->analisisSensibilidad()->select(['id', 'nombre', 'estado', 'perspectiva', 'created_at'])->latest('id')->paginate(20)->withQueryString();
 
         return view('ingenieria-economica.sensibilidad.index', compact('proyecto', 'analisis'));
     }
@@ -33,15 +32,20 @@ class SensibilidadController extends Controller
         Gate::authorize('update', $proyecto);
         $escenarios = $proyecto->escenarios()->orderByDesc('es_principal')->orderBy('id')->get();
         $evaluaciones = $proyecto->evaluaciones()->where('instantanea->perspectiva', '!=', 'fiscal')->select(['id', 'escenario_id', 'perspectiva', 'moneda', 'created_at'])->latest('id')->get();
-        $historial = $request->integer('evaluacion_id') ?: null;
-        $evaluacion = $historial ? $proyecto->evaluaciones()->find($historial) : null;
-        $id = $request->integer('escenario_id') ?: $escenarios->first()?->id;
+        $contexto = ContextoEvaluacion::actual();
+        $datos = $contexto?->datos ?? [];
+        $historial = $request->query->has('evaluacion_id') ? $request->integer('evaluacion_id') : $contexto?->historica?->id;
+        $evaluacion = $historial ? $proyecto->evaluaciones()->findOrFail($historial) : null;
+        $id = $request->integer('escenario_id') ?: ($datos['escenario_id'] ?? $escenarios->first()?->id);
+        abort_if($id && ! $escenarios->contains('id', $id), 404);
         $escenario = $escenarios->find($evaluacion?->escenario_id ?? $id);
-        $monedaSolicitada = $request->query('moneda', 'USD');
+        $monedaSolicitada = $request->query('moneda', $datos['moneda'] ?? 'USD');
         $moneda = $evaluacion?->moneda ?? (is_string($monedaSolicitada) && preg_match('/^[A-Z]{3}$/D', $monedaSolicitada) ? $monedaSolicitada : 'USD');
         $alternativas = $evaluacion
             ? array_map(fn ($a) => $a['nombre'], $evaluacion->instantanea['alternativas'])
             : $proyecto->alternativas()->orderBy('id')->pluck('nombre', 'id')->all();
+        $seleccionContextual = $evaluacion ? array_keys($alternativas) : ($datos['alternativas'] ?? []);
+        $baseSeleccionada = $evaluacion ? ContextoEvaluacion::desdeInstantanea($evaluacion->instantanea) : $datos;
         $catalogo = [];
         $aviso = null;
         if ($escenario && $alternativas) {
@@ -55,7 +59,7 @@ class SensibilidadController extends Controller
         }
 
         return view('ingenieria-economica.sensibilidad.form', compact(
-            'proyecto', 'escenarios', 'evaluaciones', 'evaluacion', 'escenario', 'moneda', 'alternativas', 'catalogo', 'aviso',
+            'proyecto', 'escenarios', 'evaluaciones', 'evaluacion', 'escenario', 'moneda', 'alternativas', 'catalogo', 'aviso', 'seleccionContextual', 'baseSeleccionada',
         ));
     }
 
@@ -101,7 +105,7 @@ class SensibilidadController extends Controller
             return $this->error($proyecto, $d, $error);
         }
 
-        return redirect()->route(self::RUTA.'show', [$proyecto, $analisis])->with('status', 'Análisis guardado como una nueva versión.');
+        return redirect()->to(ContextoEvaluacion::enlace('sensibilidad.show', [$proyecto, $analisis]))->with('status', 'Análisis guardado como una nueva versión.');
     }
 
     public function show(Request $request, Proyecto $proyecto, string $analisis, SensibilidadService $servicio): View
@@ -134,8 +138,8 @@ class SensibilidadController extends Controller
 
     private function error(Proyecto $proyecto, array $d, DomainException $error): RedirectResponse
     {
-        return redirect()->route(self::RUTA.'create', ['proyecto' => $proyecto]
-            + array_intersect_key($d, ['escenario_id' => true, 'evaluacion_id' => true, 'moneda' => true]))
+        return redirect()->to(ContextoEvaluacion::enlace('sensibilidad.create', ['proyecto' => $proyecto]
+            + array_intersect_key($d, ['escenario_id' => true, 'evaluacion_id' => true, 'moneda' => true])))
             ->withErrors(['sensibilidad' => $error->getMessage()])->withInput($d);
     }
 }

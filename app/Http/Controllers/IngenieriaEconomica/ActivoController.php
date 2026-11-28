@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\IngenieriaEconomica;
 
 use App\Http\Controllers\Controller;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Http\Requests\IngenieriaEconomica\ActivoRequest;
 use App\Models\IngenieriaEconomica\Activo;
 use App\Models\IngenieriaEconomica\Proyecto;
@@ -95,7 +96,7 @@ class ActivoController extends Controller
 
     private function detalle(Proyecto $proyecto, Activo $activo): RedirectResponse
     {
-        return redirect()->route('ingenieria-economica.proyectos.activos.show', [$proyecto, $activo])->with('status', 'Activo guardado.');
+        return redirect()->to(ContextoEvaluacion::enlace('activos.show', [$proyecto, $activo]))->with('status', 'Activo guardado.');
     }
 
     public function destroy(Proyecto $proyecto, Activo $activo, DependenciasEconomicas $dependencias): RedirectResponse
@@ -118,6 +119,6 @@ class ActivoController extends Controller
             $actual->delete();
         });
 
-        return redirect()->route('ingenieria-economica.proyectos.activos.index', $proyecto)->with('status', 'Activo eliminado.');
+        return redirect()->to(ContextoEvaluacion::enlace('activos.index', $proyecto))->with('status', 'Activo eliminado.');
     }
 }

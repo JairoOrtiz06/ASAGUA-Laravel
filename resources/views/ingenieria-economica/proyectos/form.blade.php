@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @section('economia-content')
 @php
     use App\Services\IngenieriaEconomica\ProyeccionFlujosService;
@@ -9,14 +11,14 @@
     <div>
         <h2>{{ $editando ? 'Editar proyecto' : 'Nuevo proyecto' }}</h2>
     </div>
-    <a class="button secondary" href="{{ $editando ? route('ingenieria-economica.proyectos.show', $proyecto) : route('ingenieria-economica.proyectos.index') }}">← Volver</a>
+    <a class="button button-regresar" href="{{ $editando ? ContextoEvaluacion::enlace('show', $proyecto) : route('ingenieria-economica.proyectos.index') }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Volver</a>
 </div>
 
 @if ($editando && ($proyecto->horizonte_anios < 1 || $proyecto->horizonte_anios > ProyeccionFlujosService::MAX_ANIOS))
     <p class="economia-aviso">El horizonte guardado está fuera del rango operativo. Corrígelo antes de guardar los cambios. Las evaluaciones e informes históricos se conservan.</p>
 @endif
 <section class="panel-link economia-form">
-    <form method="POST" action="{{ $editando ? route('ingenieria-economica.proyectos.update', $proyecto) : route('ingenieria-economica.proyectos.store') }}">
+    <form method="POST" action="{{ $editando ? ContextoEvaluacion::enlace('update', $proyecto) : route('ingenieria-economica.proyectos.store') }}">
         @csrf
         @if ($editando)
             @method('PATCH')

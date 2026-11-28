@@ -1,16 +1,18 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Concepto;
 
-    $destino = $activo->exists ? route('ingenieria-economica.proyectos.activos.update', [$proyecto, $activo])
-        : route('ingenieria-economica.proyectos.activos.store', $proyecto);
+    $destino = $activo->exists ? ContextoEvaluacion::enlace('activos.update', [$proyecto, $activo])
+        : ContextoEvaluacion::enlace('activos.store', $proyecto);
 @endphp
 
 @section('economia-content')
 <div class="topbar">
     <h2>{{ $activo->exists ? 'Editar activo' : 'Registrar activo' }}</h2>
-    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.activos.index', $proyecto) }}">← Activos</a>
+    <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('activos.index', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Activos</a>
 </div>
 <form class="panel-link economia-form" method="POST" action="{{ $destino }}">
     @csrf
@@ -29,7 +31,7 @@
     <p>El costo capitalizado suma el costo de adquisición y los costos capitalizables. Las valoraciones independientes, con fecha y fuente, se registran como evidencias del activo.</p>
     @if ($activo->exists)
         <p>Costo capitalizado guardado · {{ \App\Services\IngenieriaEconomica\DecimalFinanciero::dinero($activo->baseCapitalizada()) }} {{ $activo->moneda }}.</p>
-        <a href="{{ route('ingenieria-economica.proyectos.activos.show',[$proyecto,$activo]).'#valoracion' }}">Ver valor en libros, mercado y rescate</a>
+        <a href="{{ ContextoEvaluacion::enlace('activos.show',[$proyecto,$activo]).'#valoracion' }}">Ver valor en libros, mercado y rescate</a>
     @endif
     <div class="form-grid section">
         @foreach (['costo_adquisicion' => 'Costo de adquisición', 'costos_capitalizables' => 'Costos capitalizables', 'valor_residual' => 'Valor residual', 'moneda' => 'Moneda', 'porcentaje_uso' => 'Porcentaje de uso (0 a 100)'] as $campo => $etiqueta)
@@ -49,7 +51,7 @@
             </div>
         </div>
         @if ($activo->exists)
-            <p><a href="{{ route('ingenieria-economica.proyectos.activos.show',[$proyecto,$activo]) }}">Consultar métodos, cuotas y vida económica calculada</a></p>
+            <p><a href="{{ ContextoEvaluacion::enlace('activos.show',[$proyecto,$activo]) }}">Consultar métodos, cuotas y vida económica calculada</a></p>
         @endif
     </section>
     <details class="section" @if ($errors->any()) open @endif>
@@ -64,7 +66,7 @@
             @include('ingenieria-economica._campo',['campo'=>'efecto_tributario','etiqueta'=>'Disposición, base fiscal pendiente y efecto tributario documentado','tipo'=>'textarea','valor'=>$activo->efecto_tributario])
         </div>
         @if ($activo->exists)
-            <p><a href="{{ route('ingenieria-economica.proyectos.evidencias.index',[$proyecto,'tipo'=>'activo','registro'=>$activo->id]) }}">Revisar o vincular respaldo documental</a></p>
+            <p><a href="{{ ContextoEvaluacion::enlace('evidencias.index',[$proyecto,'tipo'=>'activo','registro'=>$activo->id,'origen'=>'editar-activo']) }}">Revisar o vincular respaldo documental</a></p>
         @endif
     </details>
     <div class="form-grid section">

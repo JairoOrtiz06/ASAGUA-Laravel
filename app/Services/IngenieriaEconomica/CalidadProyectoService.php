@@ -2,6 +2,8 @@
 
 namespace App\Services\IngenieriaEconomica;
 
+use App\Models\IngenieriaEconomica\Activo;
+use App\Models\IngenieriaEconomica\Escenario;
 use App\Models\IngenieriaEconomica\Evaluacion;
 use App\Models\IngenieriaEconomica\Proyecto;
 use Brick\Math\BigDecimal;
@@ -12,7 +14,7 @@ class CalidadProyectoService
 
     public function __construct(private ProyeccionFlujosService $proyeccion, private ReferenciaDocumentalService $referencias, private ArchivoDocumentalService $archivos) {}
 
-    public function revisar(Proyecto $p, ?Evaluacion $evaluacion = null, ?array $sensibilidad = null, array $calculos = []): array
+    public function revisar(Proyecto $p, ?Evaluacion $evaluacion = null, ?array $sensibilidad = null, array $calculos = [], ?array $vigencia = null): array
     {
         $r = $evaluacion?->instantanea;
         $esc = $evaluacion ? $p->escenarios()->find($evaluacion->escenario_id) : $p->escenarioPrincipal()->first() ?? $p->escenarios()->first();
@@ -20,7 +22,19 @@ class CalidadProyectoService
         $alternativas = $p->alternativas()->whereKey($ids)->get();
         $conceptos = $p->conceptos()->where(fn ($q) => $q->whereNull('alternativa_id')->orWhereIn('alternativa_id',$ids))->with('fuentes')->get();
         $activos = $p->activos()->where(fn ($q) => $q->whereNull('alternativa_id')->orWhereIn('alternativa_id',$ids))->withCount('calculos')->get();
-        $evidencias = $p->evidenciasDocumentales()->with('vinculos')->get();
+        $destinos = [
+            'escenario' => $esc ? [$esc->id] : [],
+            'alternativa' => $ids,
+            'concepto' => $conceptos->modelKeys(),
+            'activo' => $activos->modelKeys(),
+        ];
+        $evidencias = $p->evidenciasDocumentales()->whereHas('vinculos', function ($consulta) use ($destinos) {
+            $consulta->where(function ($consulta) use ($destinos) {
+                foreach ($destinos as $tipo => $ids) {
+                    $consulta->orWhere(fn ($vinculo) => $vinculo->where('tipo', $tipo)->whereIn('destino_id', $ids));
+                }
+            });
+        })->with('vinculos')->get();
         $respaldoPorEvidencia = $evidencias->mapWithKeys(fn ($doc) => [
             $doc->id => $this->referencias->faltaRespaldo($p, $doc, $this->archivos, conciliado: true),
         ]);
@@ -120,9 +134,9 @@ class CalidadProyectoService
         $agregar('Flujos','Exclusiones y comunes',$r?($consistente?'validado':'revision'):'pendiente',
             "$exclusiones exclusión(es) explícita(s). Se contrasta el neto común y su retiro en la memoria incremental.",true);
 
-        $vigente = $r && $esc && isset($r['insumos']) && $this->vigente($p,$esc,$r,$ids);
-        $agregar('Evaluación','Instantánea vigente',$vigente?'validado':($r?'revision':'pendiente'),
-            $vigente?'Los insumos guardados coinciden con los actuales.':'Guarda una evaluación con insumos vigentes para emitir un informe validado.',true);
+        $vigencia ??= $evaluacion ? $this->vigencia($p, $evaluacion, $esc) : null;
+        $agregar('Evaluación','Instantánea vigente',($vigencia['vigente'] ?? false)?'validado':($r?'revision':'pendiente'),
+            $vigencia['motivo'] ?? 'Selecciona una evaluación guardada para comprobar sus insumos.',true);
         $indicadores = $r && collect($r['alternativas'])->every(fn ($a) => isset($a['indicadores']['van'],$a['indicadores']['vpc'],$a['indicadores']['caue']));
         $agregar('Evaluación','Indicadores, versión y perspectiva',$indicadores?'validado':'pendiente',
             $r ? "Motor {$r['version']} · {$r['perspectiva']}. TIR y RCB pueden no aplicar." : 'Selecciona una evaluación guardada.',true);
@@ -149,14 +163,12 @@ class CalidadProyectoService
             ? (($sensibilidad['estado'] === 'validado' && ! empty($sensibilidad['datos']['simulaciones']))?'validado':'revision')
             : 'na',$sensibilidad ? $sensibilidad['nombre'].' · '.$sensibilidad['estado'].' · '.count($sensibilidad['datos']['simulaciones']).' simulación(es).' : 'No se seleccionó un análisis.',true);
         foreach ($calculos as $calculo) {
-            $ctx = $calculo['datos']['escenario'] ?? null;
-            if ($ctx && $r) {
-                $compatible = $ctx['base'] === $r['escenario']['base'] && $ctx['horizonte'] === $r['escenario']['horizonte']
-                    && BigDecimal::of($ctx['tasa_anual'])->isEqualTo($r['escenario']['anual'])
-                    && $calculo['datos']['activo']['moneda'] === $r['moneda'];
-                $agregar('Activos','Contexto de reemplazo #'.$calculo['id'],$compatible?'validado':'revision',
-                    $compatible?'Base, horizonte, moneda y tasa coinciden.':'Cálculo complementario con un contexto distinto al de la evaluación.',true);
-            }
+            $activo = $activos->firstWhere('id', $calculo['activo_id']);
+            $vigenteActivo = $activo && $this->coincideActivo($activo, $calculo['datos']);
+            $agregar('Activos', 'Insumos del cálculo #'.$calculo['id'], $vigenteActivo ? 'validado' : 'revision',
+                $vigenteActivo ? 'Los datos del activo capturados por este cálculo siguen disponibles y coinciden.'
+                    : 'Los datos actuales del activo difieren de los capturados. Revisa el cálculo antes de una nueva emisión validada.',
+                true, $activo ? ['activo', $activo->id] : null);
         }
         $agregar('Activos','Activos del alcance',$activos->isEmpty()?'na':'validado',$activos->count().' activo(s) registrado(s).');
         foreach ($activos as $a) {
@@ -173,16 +185,39 @@ class CalidadProyectoService
         $bloqueos = array_values(array_filter($requisitos,fn ($i) => $i['critico'] && in_array($i['estado'],['revision','pendiente'],true)));
 
         return [
-            'requisitos'=>$requisitos,'bloqueos'=>$bloqueos,'puede_validar'=>$bloqueos===[],
+            'requisitos'=>$requisitos,'bloqueos'=>$bloqueos,'puede_validar'=>$bloqueos===[], 'vigencia'=>$vigencia,
             'conteos'=>array_count_values(array_column($requisitos,'estado')),
             'faltantes'=>array_values(array_filter($requisitos,fn ($i) => $i['estado']==='pendiente' && (
                 in_array($i['grupo'],['Escenario','Conceptos','Activos','Alternativas'],true)))),
         ];
     }
 
-    private function vigente(Proyecto $p, $esc, array $r, array $ids): bool
+    private function coincideActivo(Activo $activo, array $datos): bool
     {
-        if (! $esc->tasa_efectiva_anual || $r['proyecto']['tipo_decision'] !== $p->tipo_decision
+        $captura = $datos['activo'] ?? [];
+        if (! $captura || $activo->only(array_keys($captura)) != $captura) {
+            return false;
+        }
+        if (isset($datos['escenario'])) {
+            // Reemplazo trae sus supuestos en la instantánea y el informe verifica la compatibilidad del escenario.
+            return true;
+        }
+
+        return isset($datos['base'], $datos['residual'])
+            && $activo->baseCapitalizada()->isEqualTo($datos['base'])
+            && BigDecimal::of($activo->valor_residual)->isEqualTo($datos['residual'])
+            && $activo->vida_util_anios === ($datos['vida'] ?? null)
+            && $activo->fecha_disponible_uso?->toDateString() === ($datos['inicio'] ?? null);
+    }
+
+    public function vigencia(Proyecto $p, Evaluacion $evaluacion, ?Escenario $esc = null, ?array $insumos = null): array
+    {
+        $r = $evaluacion->instantanea;
+        $esc ??= $p->escenarios()->find($evaluacion->escenario_id);
+        if (! $esc || ! isset($r['insumos'])) {
+            return ['vigente' => false, 'motivo' => 'La versión guardada carece de los insumos necesarios para acreditar vigencia.'];
+        }
+        if ($esc->tasa_efectiva_anual === null || $r['proyecto']['tipo_decision'] !== $p->tipo_decision
             || ($esc->fecha_base ?? $p->fecha_base)->toDateString() !== $r['escenario']['base']
             || $esc->horizonte_anios !== $r['escenario']['horizonte']
             || $esc->periodicidad !== $r['escenario']['periodicidad_escenario']
@@ -191,10 +226,39 @@ class CalidadProyectoService
             || $esc->periodicidad_tasa !== $r['escenario']['periodicidad_tasa']
             || $esc->estado_tasa !== $r['escenario']['estado_tasa'] || $esc->fuente_tasa !== $r['escenario']['fuente_tasa']
             || ! BigDecimal::of($esc->tasa_efectiva_anual)->isEqualTo($r['escenario']['anual'])) {
-            return false;
+            return ['vigente' => false, 'motivo' => 'Cambió la configuración del escenario o el tipo de decisión desde que se guardó la evaluación.'];
         }
 
-        return $this->ordenar($this->proyeccion->insumos($p,$esc,$ids)) === $this->ordenar($r['insumos']);
+        $ids = array_keys($r['alternativas']);
+        try {
+            $actuales = $insumos ?? $this->proyeccion->insumos($p, $esc, $ids);
+        } catch (\DomainException) {
+            return ['vigente' => false, 'motivo' => 'Las alternativas de la versión ya no están disponibles en el alcance actual.'];
+        }
+        if (! $this->coincidenInsumos($actuales, $r['insumos'])) {
+            return ['vigente' => false, 'motivo' => 'Cambiaron alternativas, conceptos, fuentes o ajustes desde que se guardó la evaluación. Guarda una versión con insumos vigentes.'];
+        }
+
+        if (($r['perspectiva'] ?? null) === 'fiscal') {
+            $fiscal = $r['fiscal'] ?? [];
+            $activos = $fiscal['activos_verificados'] ?? null;
+            $fuente = $fiscal['fuente'] ?? [];
+            $documento = $p->evidenciasDocumentales()->with('vinculos')->find($fuente['id'] ?? null);
+            if ($activos === null || ! $documento || $documento->only(['id', 'titulo', 'procedencia', 'estado', 'calidad', 'sha256'])
+                != array_intersect_key($fuente, array_flip(['id', 'titulo', 'procedencia', 'estado', 'calidad', 'sha256']))
+                || $documento->fecha_documento->toDateString() !== ($fuente['fecha'] ?? null)
+                || $this->referencias->faltaRespaldo($p, $documento, $this->archivos, conciliado: true) !== null
+                || $this->ordenar($p->activos()->whereKey(array_keys($activos))->get()->keyBy('id')->map->getAttributes()->all()) !== $this->ordenar($activos)) {
+                return ['vigente' => false, 'motivo' => 'No se pudo acreditar la vigencia fiscal. Revisa el respaldo tributario y los activos utilizados en la evaluación.'];
+            }
+        }
+
+        return ['vigente' => true, 'motivo' => 'Los insumos guardados coinciden con los actuales.'];
+    }
+
+    public function coincidenInsumos(array $actuales, array $guardados): bool
+    {
+        return $this->ordenar($actuales) === $this->ordenar($guardados);
     }
 
     private function ordenar(array $a): array
@@ -211,7 +275,7 @@ class CalidadProyectoService
         return $a;
     }
 
-    private function flujosValidos(array $r): bool
+    public function flujosValidos(array $r): bool
     {
         foreach ($r['alternativas'] as $a) {
             foreach ($a['periodos'] as $p) {

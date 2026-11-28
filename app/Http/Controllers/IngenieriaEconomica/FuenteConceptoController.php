@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\IngenieriaEconomica;
 
 use App\Http\Controllers\Controller;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Http\Requests\IngenieriaEconomica\FuenteConceptoRequest;
 use App\Models\IngenieriaEconomica\Concepto;
 use App\Models\IngenieriaEconomica\FuenteConcepto;
@@ -49,7 +50,7 @@ class FuenteConceptoController extends Controller
 
     private function detalle(Proyecto $proyecto, Concepto $concepto, string $mensaje): RedirectResponse
     {
-        return redirect()->route('ingenieria-economica.proyectos.conceptos.show', [$proyecto, $concepto])->with('status', $mensaje);
+        return redirect()->to(ContextoEvaluacion::enlace('conceptos.show', [$proyecto, $concepto]))->with('status', $mensaje);
     }
 
     public function destroy(Proyecto $proyecto, Concepto $concepto, FuenteConcepto $fuente, DependenciasEconomicas $dependencias): RedirectResponse

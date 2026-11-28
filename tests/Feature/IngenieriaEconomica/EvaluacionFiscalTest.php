@@ -49,6 +49,8 @@ class EvaluacionFiscalTest extends TestCase
         $this->post(route(self::RUTA.'evaluaciones.store', $p), $d + ['firma'=>$vista->viewData('firma')])
             ->assertRedirect()->assertSessionHasNoErrors();
         $e = Evaluacion::query()->sole();
+        $alcance = [$p, 'contexto' => ['evaluacion_id' => $e->id]];
+        $this->get(route(self::RUTA.'show', $alcance))->assertOk()->assertSee('Los insumos guardados coinciden');
         $this->get(route(self::RUTA.'evaluaciones.index', $p))->assertOk()->assertSee('Financiera después de impuestos');
         $this->get(route(self::RUTA.'informes.index', [$p,'evaluacion_id'=>$e->id]))->assertOk()
             ->assertSee('Memoria de evaluación después de impuestos')->assertSee('Respaldo tributario académico');
@@ -59,6 +61,12 @@ class EvaluacionFiscalTest extends TestCase
         $informe = InformeEconomico::query()->sole();
         $pdf = Storage::disk('ingenieria_privada')->get('informes/'.$informe->folio.'.pdf');
         $this->assertStringStartsWith('%PDF-', $pdf);
+        $doc = $p->evidenciasDocumentales()->sole();
+        $this->post(route(self::RUTA.'evidencias.estado', [$p, $doc]), ['estado' => 'revisado', 'nota' => 'Cambio de respaldo en prueba.'])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->get(route(self::RUTA.'validacion', $alcance))->assertOk()->assertSee('No se pudo acreditar la vigencia fiscal.');
+        $this->post(route(self::RUTA.'evidencias.estado', [$p, $doc]), ['estado' => 'validado', 'nota' => 'Restauración del respaldo de prueba.'])
+            ->assertRedirect()->assertSessionHasNoErrors();
         $instantanea = $e->instantanea;
         $ingreso->update(['monto'=>'1700']);
         $this->assertSame($instantanea, $e->fresh()->instantanea);

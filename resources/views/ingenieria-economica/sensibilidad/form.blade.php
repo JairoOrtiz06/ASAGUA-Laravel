@@ -1,23 +1,25 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Evaluacion;
     use App\Services\IngenieriaEconomica\ProyeccionFlujosService;
     use App\Services\IngenieriaEconomica\SensibilidadService;
     use App\Services\IngenieriaEconomica\VariablesSensibilidadService;
 
-    $ruta = 'ingenieria-economica.proyectos.sensibilidad.';
     $estadoInicial = fn ($campo, $defecto = '') => is_scalar(old($campo)) ? old($campo) : $defecto;
-    $seleccion = array_map('strval', array_filter((array) old('alternativas', array_slice(array_keys($alternativas), 0, 2)), 'is_scalar'));
+    $seleccion = array_map('strval', array_filter((array) old('alternativas', (count($seleccionContextual) > 6 ? [] : ($seleccionContextual ?: array_slice(array_keys($alternativas), 0, 2)))), 'is_scalar'));
     $indicadores = (array) old('indicadores', ['van','vpc','caue','rcb','tir']);
 @endphp
 
 @section('economia-content')
 <div class="topbar">
     <div><h2>Nuevo análisis de sensibilidad</h2><p class="muted">{{ $proyecto->nombre }}</p></div>
-    <a class="button secondary" href="{{ route($ruta.'index', $proyecto) }}">← Análisis guardados</a>
+    <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('sensibilidad.index', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Análisis guardados</a>
 </div>
-<form class="panel-link" method="GET" action="{{ route($ruta.'create', $proyecto) }}">
+<form class="panel-link" method="GET" action="{{ ContextoEvaluacion::enlace('sensibilidad.create', $proyecto) }}">
+    @include('ingenieria-economica._contexto-campos')
     <div class="form-grid">
         @include('ingenieria-economica._campo', ['campo'=>'escenario_id','etiqueta'=>'Escenario con datos vigentes','tipo'=>'select','opciones'=>$escenarios->pluck('nombre','id'),'valor'=>$escenario?->id])
         @include('ingenieria-economica._campo', ['campo'=>'evaluacion_id','etiqueta'=>'Evaluación guardada (opcional)','tipo'=>'select',
@@ -27,9 +29,15 @@
     </div>
     <div class="actions"><button class="button secondary" type="submit">Cargar variables de la base</button></div>
 </form>
+@if (count($seleccionContextual) > 6)
+    <p class="economia-aviso">Selecciona hasta seis alternativas para simular. El subconjunto es un alcance distinto y no se puede adjuntar al informe de la evaluación completa.</p>
+@endif
+@if (($baseSeleccionada['perspectiva'] ?? null) === 'fiscal')
+    <p class="economia-aviso">La sensibilidad no está disponible para la perspectiva fiscal.</p>
+@endif
 @if ($aviso)<p class="errors">{{ $aviso }}</p>@endif
-@if ($escenario && $catalogo)
-<form class="section panel-link" id="formulario-sensibilidad" method="POST" action="{{ route($ruta.'preview', $proyecto) }}">
+@if ($escenario && $catalogo && ($baseSeleccionada['perspectiva'] ?? null) !== 'fiscal')
+<form class="section panel-link" id="formulario-sensibilidad" method="POST" action="{{ ContextoEvaluacion::enlace('sensibilidad.preview', $proyecto) }}">
     @csrf
     <input type="hidden" name="escenario_id" value="{{ $escenario->id }}">
     <input type="hidden" name="moneda" value="{{ $moneda }}">
@@ -40,10 +48,10 @@
         @include('ingenieria-economica._campo', ['campo'=>'estado','etiqueta'=>'Validación de los supuestos','tipo'=>'select','opciones'=>['provisional'=>'Provisional','validado'=>'Validado por el contador'],'valor'=>'provisional','obligatorio'=>true])
         @include('ingenieria-economica._campo', ['campo'=>'descripcion','etiqueta'=>'Descripción','tipo'=>'textarea'])
         @include('ingenieria-economica._campo', ['campo'=>'supuestos','etiqueta'=>'Supuestos, origen y justificación','tipo'=>'textarea'])
-        @include('ingenieria-economica._campo', ['campo'=>'perspectiva','etiqueta'=>'Perspectiva','tipo'=>'select','opciones'=>Evaluacion::PERSPECTIVAS,'valor'=>$evaluacion?->perspectiva ?? 'caja','obligatorio'=>true])
-        @include('ingenieria-economica._campo', ['campo'=>'periodicidad','etiqueta'=>'Periodicidad del descuento','tipo'=>'select','opciones'=>ProyeccionFlujosService::AGRUPACIONES,'valor'=>$evaluacion?->instantanea['escenario']['periodicidad'] ?? 'escenario','obligatorio'=>true])
+        @include('ingenieria-economica._campo', ['campo'=>'perspectiva','etiqueta'=>'Perspectiva','tipo'=>'select','opciones'=>Evaluacion::PERSPECTIVAS,'valor'=>$baseSeleccionada['perspectiva'] ?? 'caja','obligatorio'=>true])
+        @include('ingenieria-economica._campo', ['campo'=>'periodicidad','etiqueta'=>'Periodicidad del descuento','tipo'=>'select','opciones'=>ProyeccionFlujosService::AGRUPACIONES,'valor'=>$baseSeleccionada['periodicidad'] ?? 'escenario','obligatorio'=>true])
         @include('ingenieria-economica._campo', ['campo'=>'modo','etiqueta'=>'Tipo de análisis','tipo'=>'select','opciones'=>SensibilidadService::MODOS,'valor'=>'unidimensional','obligatorio'=>true])
-        @include('ingenieria-economica._campo', ['campo'=>'referencia_id','etiqueta'=>'Alternativa B de referencia','tipo'=>'select','opciones'=>$alternativas,'ayuda'=>'Si queda vacía, se usa la segunda alternativa seleccionada.'])
+        @include('ingenieria-economica._campo', ['campo'=>'referencia_id','etiqueta'=>'Alternativa B de referencia','tipo'=>'select','opciones'=>$alternativas,'valor'=>$baseSeleccionada['referencia_id'] ?? null,'ayuda'=>'Si queda vacía, se usa la segunda alternativa seleccionada.'])
         <fieldset class="field-full">
             <legend>Alternativas</legend>
             @foreach ($alternativas as $id => $nombre)

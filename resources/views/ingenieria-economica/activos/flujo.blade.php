@@ -1,16 +1,18 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Concepto;
     use App\Services\IngenieriaEconomica\IntegracionActivoService;
 @endphp
 
 @section('economia-content')
-<div class="topbar"><h2>Vincular movimiento de {{ $activo->nombre }}</h2><a class="button secondary" href="{{ route('ingenieria-economica.proyectos.activos.show', [$proyecto, $activo]) }}">← Activo</a></div>
+<div class="topbar"><h2>Vincular movimiento de {{ $activo->nombre }}</h2><a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('activos.show', [$proyecto, $activo]) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Activo</a></div>
 @if ($escenarios->isEmpty() || $fuentes->isEmpty())
     <p>Registra un escenario y una evidencia del movimiento monetario antes de continuar.</p>
 @else
-    <form class="panel-link economia-form" method="POST" action="{{ route('ingenieria-economica.proyectos.activos.flujo.store', [$proyecto, $activo]) }}">
+    <form class="panel-link economia-form" method="POST" action="{{ ContextoEvaluacion::enlace('activos.flujo.store', [$proyecto, $activo]) }}">
         @csrf
         <div class="form-grid">
             @include('ingenieria-economica._campo', ['campo' => 'escenario_id', 'etiqueta' => 'Escenario de referencia para comprobar fechas', 'tipo' => 'select', 'opciones' => $escenarios, 'obligatorio' => true])

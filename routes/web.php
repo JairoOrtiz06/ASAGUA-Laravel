@@ -47,6 +47,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureUserIsActive::class])->gro
     Route::middleware('role:Contador')->group(function (): void {
         Route::get('/portal/contador', [PortalController::class, 'contador'])->name('portal.contador');
         Route::prefix('ingenieria-economica')->name('ingenieria-economica.')->scopeBindings()
+            ->middleware(\App\Http\Middleware\ResolverContextoEvaluacion::class)
             ->where(['proyecto' => '[0-9]+', 'alternativa' => '[0-9]+', 'escenario' => '[0-9]+', 'concepto' => '[0-9]+', 'fuente' => '[0-9]+', 'activo' => '[0-9]+'])
             ->group(function (): void {
                 Route::view('/', 'ingenieria-economica.index')->name('index');
@@ -120,6 +121,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureUserIsActive::class])->gro
                 });
                 Route::prefix('proyectos/{proyecto}/evaluaciones')->name('proyectos.evaluaciones.')->group(function (): void {
                     Route::get('/', [EvaluacionController::class, 'index'])->name('index');
+                    Route::post('/seleccion', [EvaluacionController::class, 'seleccion'])->name('seleccion');
                     Route::post('/vista-previa', [EvaluacionController::class, 'preview'])->name('preview');
                     Route::post('/', [EvaluacionController::class, 'store'])->name('store');
                     Route::get('/{evaluacion}', [EvaluacionController::class, 'show'])->whereNumber('evaluacion')->name('show');
@@ -130,7 +132,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureUserIsActive::class])->gro
                     ->whereNumber('ajuste')->name('proyectos.ajustes-flujo.destroy');
                 Route::post('proyectos/{proyecto}/escenarios/previsualizar', [EscenarioController::class, 'previsualizar'])
                     ->name('proyectos.escenarios.previsualizar');
-                Route::resource('proyectos.escenarios', EscenarioController::class)->only(['create', 'store', 'edit', 'update', 'destroy'])
+                Route::resource('proyectos.escenarios', EscenarioController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
                     ->parameters(['proyectos' => 'proyecto', 'escenarios' => 'escenario']);
                 Route::patch('proyectos/{proyecto}/escenarios/{escenario}/principal', [EscenarioController::class, 'principal'])
                     ->name('proyectos.escenarios.principal');

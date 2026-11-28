@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Concepto;
     use App\Services\IngenieriaEconomica\DecimalFinanciero;
@@ -15,16 +17,26 @@
         <p class="muted">{{ $proyecto->nombre }} @if($alternativaId) · {{ $alternativas[$alternativaId] }} @endif</p>
     </div>
     <div class="actions">
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.show', $proyecto) }}">← Proyecto</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.conceptos.create', ['proyecto' => $proyecto, 'alternativa_id' => $alternativaId]) }}">Nuevo concepto</a>
+        <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('show', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Proyecto</a>
+        <a class="button secondary" href="{{ ContextoEvaluacion::enlace('activos.index', $proyecto) }}">Consultar activos de la inversión</a>
+        <a class="button" href="{{ ContextoEvaluacion::enlace('conceptos.create', ['proyecto' => $proyecto, 'alternativa_id' => $alternativaId]) }}">Nuevo concepto</a>
     </div>
 </div>
 
+@if ($idsContextuales = ContextoEvaluacion::actual()?->datos['alternativas'])
+    <div class="actions section" aria-label="Datos de la selección">
+        <a class="button secondary" href="{{ ContextoEvaluacion::enlace('conceptos.index', $proyecto) }}">Datos comunes</a>
+        @foreach ($alternativas->only($idsContextuales) as $id => $nombre)
+            <a class="button secondary" href="{{ ContextoEvaluacion::enlace('conceptos.index', [$proyecto, 'alternativa_id' => $id]) }}">Datos de {{ $nombre }}</a>
+        @endforeach
+    </div>
+@endif
 @if (!$alternativaId)
     <p>Registra aquí los conceptos que afectan por igual a todas las alternativas. Se aplican desde una única fuente del proyecto.</p>
 @endif
 
-<form class="panel-link" method="GET" action="{{ route('ingenieria-economica.proyectos.conceptos.index', $proyecto) }}">
+<form class="panel-link" method="GET" action="{{ ContextoEvaluacion::enlace('conceptos.index', $proyecto) }}">
+    @include('ingenieria-economica._contexto-campos')
     <div class="form-grid">
         <div class="field">
             <label for="alternativa_id">Ámbito</label>
@@ -49,7 +61,7 @@
         <tbody>
             @forelse ($conceptos as $concepto)
                 <tr>
-                    <th scope="row"><a href="{{ route('ingenieria-economica.proyectos.conceptos.show', [$proyecto, $concepto]) }}">{{ $concepto->nombre }}</a></th>
+                    <th scope="row"><a href="{{ ContextoEvaluacion::enlace('conceptos.show', [$proyecto, $concepto]) }}">{{ $concepto->nombre }}</a></th>
                     <td>{{ Concepto::TIPOS[$concepto->tipo_concepto] }}</td>
                     <td>{{ DecimalFinanciero::dinero(BigDecimal::of($concepto->monto)) }} {{ $concepto->moneda }}</td>
                     <td>{{ Concepto::PERIODICIDADES[$concepto->periodicidad] }}</td>

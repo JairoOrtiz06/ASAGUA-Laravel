@@ -1,142 +1,77 @@
 @extends('layouts.ingenieria-economica')
 
 @php
-    use App\Services\IngenieriaEconomica\DecimalFinanciero;
+    use Illuminate\Support\Str;
+    use App\Models\IngenieriaEconomica\Evaluacion;
+    use App\Models\IngenieriaEconomica\Escenario;
+    use App\Services\IngenieriaEconomica\ContextoEvaluacion;
+
+    $descripcionBreve = Str::squish($proyecto->descripcion ?? '');
 @endphp
 
 @section('economia-content')
-<div class="topbar">
-    <h2>{{ $proyecto->nombre }}</h2>
+@if ($avisoPreferencia = request()->attributes->get('aviso_preferencia_evaluacion'))
+    <p class="economia-aviso" role="status">{{ $avisoPreferencia }}</p>
+@endif
+
+<div class="topbar proyecto-encabezado" id="resumen-proyecto" tabindex="-1">
+    <h1 class="proyecto-titulo">{{ $proyecto->nombre }}</h1>
     <div class="actions">
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.index') }}">← Mis proyectos</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.edit', $proyecto) }}">Editar proyecto</a>
+        <a class="button button-regresar" href="{{ route('ingenieria-economica.proyectos.index') }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Volver a mis proyectos</a>
+        <a class="button" href="{{ ContextoEvaluacion::enlace('edit', $proyecto) }}">Editar proyecto</a>
     </div>
 </div>
 
 <section aria-label="Datos del proyecto">
-    <dl class="panel-grid summary">
-        <div class="panel-link"><dt>Organización</dt><dd>{{ $proyecto->organizacion ?? 'Sin registrar' }}</dd></div>
-        <div class="panel-link"><dt>Tipo de decisión</dt><dd>{{ $proyecto::TIPOS_DECISION[$proyecto->tipo_decision] }}</dd></div>
-        <div class="panel-link"><dt>Fecha base</dt><dd>{{ $proyecto->fecha_base->format('d/m/Y') }}</dd></div>
-        <div class="panel-link"><dt>Horizonte en años</dt><dd>{{ $proyecto->horizonte_anios }}</dd></div>
-        <div class="panel-link"><dt>Estado administrativo</dt><dd>{{ $proyecto::ESTADOS[$proyecto->estado] }}</dd></div>
-        <div class="panel-link"><dt>Preparación documental</dt><dd>{{ $calidad['puede_validar'] ? 'Sin bloqueos críticos' : count($calidad['bloqueos']).' bloqueos por revisar' }}</dd></div>
-        <div class="panel-link"><dt>Alternativas registradas</dt><dd>{{ $alternativas->total() }}</dd></div>
-        <div class="panel-link"><dt>Escenario principal</dt><dd>{{ $proyecto->escenarioPrincipal?->nombre ?? 'Sin definir' }}</dd></div>
+    <dl class="summary proyecto-contexto">
+        <div><dt>Organización</dt><dd>{{ $proyecto->organizacion ?? 'Sin registrar' }}</dd></div>
+        <div><dt>Tipo de decisión</dt><dd>{{ $proyecto::TIPOS_DECISION[$proyecto->tipo_decision] }}</dd></div>
+        <div><dt>Fecha base</dt><dd>{{ $proyecto->fecha_base->format('d/m/Y') }}</dd></div>
+        <div><dt>Horizonte</dt><dd>{{ $proyecto->horizonte_anios }} años</dd></div>
+        <div><dt>Estado administrativo</dt><dd>{{ $proyecto::ESTADOS[$proyecto->estado] }}</dd></div>
+        <div><dt>Alternativas registradas</dt><dd>{{ $proyecto->alternativas_count }}</dd></div>
+        <div><dt>Escenario principal</dt><dd>{{ $proyecto->escenarioPrincipal?->nombre ?? 'Sin escenario principal' }}</dd></div>
+        <div><dt>Preparación documental</dt><dd>{{ isset($progreso['alcance']) ? ($progreso['alcance']['calidad']['puede_validar'] ? 'Sin bloqueos críticos para la selección' : count($progreso['alcance']['calidad']['bloqueos']).' requisitos críticos por revisar') : 'Sin revisión de una evaluación guardada seleccionada' }}</dd></div>
     </dl>
-    <p class="section"><strong>Siguiente paso sugerido</strong> · <a href="{{ $siguiente[1] }}">{{ $siguiente[0] }}</a></p>
-    <div class="actions section">
-        <a class="button secondary" href="{{ $escenarios->total() ? '#escenarios' : route('ingenieria-economica.proyectos.escenarios.create', $proyecto) }}">Configurar escenario</a>
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.conceptos.create', $proyecto) }}">Registrar concepto</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.evidencias.index', $proyecto) }}">Evidencias documentales</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.validacion', $proyecto) }}">Validación del proyecto</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.informes.index', $proyecto) }}">Resultados económicos e informes</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.evaluaciones.index', $proyecto) }}">Evaluación financiera</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.sensibilidad.index', $proyecto) }}">Análisis de sensibilidad</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.activos.index', $proyecto) }}">Activos y depreciación</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.flujos.index', $proyecto) }}">Proyectar y comparar flujos</a>
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.conceptos.index', $proyecto) }}">Conceptos comunes</a>
-    </div>
-    @if ($proyecto->descripcion)
-        <p class="description">{{ $proyecto->descripcion }}</p>
+    @if (Str::length($descripcionBreve) > 110)
+        <details class="proyecto-descripcion">
+            <summary>Descripción del proyecto <span class="proyecto-descripcion-breve">{{ Str::limit($descripcionBreve, 110, preserveWords: true) }}</span></summary>
+            <p class="description">{{ $proyecto->descripcion }}</p>
+        </details>
+    @elseif ($descripcionBreve !== '')
+        <p class="proyecto-descripcion">{{ $descripcionBreve }}</p>
     @endif
 </section>
 
-<section class="section panel-link" id="alternativas">
+<section class="section panel-link" aria-labelledby="evaluacion-seleccionada">
     <div class="topbar">
-        <h3>Alternativas</h3>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.alternativas.create', $proyecto) }}">Agregar alternativa</a>
+        <h2 id="evaluacion-seleccionada">Evaluación seleccionada</h2>
+        <a class="button secondary" href="{{ ContextoEvaluacion::enlace('evaluaciones.index', $proyecto) }}#seleccion-evaluacion">Cambiar selección</a>
     </div>
-    @error('alternativa')
-        <p class="errors">{{ $message }}</p>
-    @enderror
-    <ul class="records">
-        @forelse ($alternativas as $alternativa)
-            <li>
-                <strong>{{ $alternativa->nombre }}</strong>
-                <a href="{{ route('ingenieria-economica.proyectos.evidencias.index',[$proyecto,'tipo'=>'alternativa','registro'=>$alternativa->id]) }}">Respaldo documental</a>
-                <div class="muted">
-                    {{ $alternativa->proveedor ? $alternativa->proveedor . ' · ' : '' }}
-                    {{ $alternativa::ESTADOS[$alternativa->estado_implementacion] }} ·
-                    Viabilidad técnica: {{ $alternativa::VIABILIDADES[$alternativa->viabilidad_tecnica] }}
-                    @if ($alternativa->fecha_implementacion)
-                        · {{ $alternativa->fecha_implementacion->format('d/m/Y') }}
-                    @endif
-                </div>
-                @if ($alternativa->descripcion)
-                    <p class="description">{{ $alternativa->descripcion }}</p>
-                @endif
-                @if ($alternativa->observaciones)
-                    <p class="description">{{ $alternativa->observaciones }}</p>
-                @endif
-                <div class="actions">
-                    <a class="button" href="{{ route('ingenieria-economica.proyectos.alternativas.edit', [$proyecto, $alternativa]) }}">Editar</a>
-                    <form method="POST" action="{{ route('ingenieria-economica.proyectos.alternativas.destroy', [$proyecto, $alternativa]) }}"
-                        onsubmit="return confirm('¿Eliminar esta alternativa? Solo se permite si no se ha implementado y no tiene registros vinculados.')">
-                        @csrf
-                        @method('DELETE')
-                        <button class="button warning" type="submit" aria-label="Eliminar alternativa {{ $alternativa->nombre }}">Eliminar</button>
-                    </form>
-                    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.conceptos.index', ['proyecto' => $proyecto, 'alternativa_id' => $alternativa->id]) }}">Conceptos</a>
-                    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.flujos.index', ['proyecto' => $proyecto, 'alternativas' => [$alternativa->id]]) }}">Ver flujos</a>
-                </div>
-            </li>
-        @empty
-            <li class="muted">Todavía no hay alternativas registradas.</li>
-        @endforelse
-    </ul>
-    @include('ingenieria-economica._paginacion', ['paginas' => $alternativas->withQueryString()->fragment('alternativas')])
+    @if ($contexto)
+        <dl class="summary proyecto-contexto">
+            <div><dt>Escenario</dt><dd>{{ $contexto->historica?->instantanea['escenario']['nombre'] ?? $contexto->escenario?->nombre }}</dd></div>
+            <div><dt>Alternativas</dt><dd>{{ implode(', ', $progreso['nombres']) }}</dd></div>
+            <div><dt>Moneda y periodicidad</dt><dd>{{ $contexto->datos['moneda'] }} · {{ Escenario::PERIODOS[$contexto->periodicidadEfectiva()] }}</dd></div>
+            <div><dt>Perspectiva</dt><dd>{{ Evaluacion::PERSPECTIVAS_PRESENTACION[$contexto->datos['perspectiva']] }}</dd></div>
+            @if (count($contexto->datos['alternativas']) > 1)
+                <div><dt>Alternativa de referencia</dt><dd>{{ $progreso['nombres'][$contexto->datos['referencia_id']] ?? 'Sin referencia' }}</dd></div>
+            @endif
+            @if ($progreso['evaluacion'])
+                @php($calidadSeleccion = $progreso['alcance']['calidad'] ?? null)
+                <div><dt>Estado de la evaluación</dt><dd>
+                    Guardada
+                    @if ($calidadSeleccion['vigencia']['vigente'] ?? false) · Vigente @endif
+                    @if ($calidadSeleccion && ! $calidadSeleccion['puede_validar']) · Preliminar para esta decisión @endif
+                    @if ($calidadSeleccion['puede_validar'] ?? false) · Documentalmente validable @endif
+                </dd></div>
+                <div><dt>Versión</dt><dd><a href="{{ ContextoEvaluacion::enlace('evaluaciones.show', [$proyecto, $progreso['evaluacion']]) }}">Evaluación #{{ $progreso['evaluacion']->id }}</a>{{ $contexto->historica ? ' · consulta de instantánea histórica' : '' }}</dd></div>
+            @endif
+        </dl>
+    @else
+        <p>Elige escenario, alternativas, moneda y perspectiva en Evaluación. Los estados se actualizarán al aplicar la selección.</p>
+    @endif
 </section>
 
-<section class="section panel-link" id="escenarios">
-    <div class="topbar">
-        <h3>Escenarios</h3>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.escenarios.create', $proyecto) }}">Configurar escenario</a>
-    </div>
-    <ul class="records">
-        @forelse ($escenarios as $escenario)
-            <li>
-                <strong>{{ $escenario->nombre }}</strong>
-                <a href="{{ route('ingenieria-economica.proyectos.evidencias.index',[$proyecto,'tipo'=>'escenario','registro'=>$escenario->id]) }}">Respaldo documental</a>
-                @if ($escenario->es_principal)
-                    <span class="muted">· Principal</span>
-                @endif
-                <div class="muted">
-                    {{ $escenario->horizonte_anios }} años · {{ $escenario::PERIODOS[$escenario->periodicidad] }} ·
-                    Tasa {{ strtolower($escenario::ESTADOS_TASA[$escenario->estado_tasa]) }}
-                </div>
-                @if ($escenario->tasa_original !== null)
-                    <div class="muted">
-                        Tasa original: {{ DecimalFinanciero::porcentaje($escenario->tasa_original) }} %
-                        · {{ $escenario::MODALIDADES[$escenario->modalidad_tasa] }}
-                        · {{ $escenario::PERIODOS_TASA[$escenario->periodicidad_tasa] }}
-                        @if ($escenario->tasa_efectiva_anual !== null)
-                            · Efectiva anual: {{ DecimalFinanciero::porcentaje($escenario->tasa_efectiva_anual) }} %
-                        @endif
-                    </div>
-                @endif
-                @if ($escenario->fuente_tasa)
-                    <p class="description">Fuente: {{ $escenario->fuente_tasa }}</p>
-                @endif
-                <div class="actions">
-                    <a class="button" href="{{ route('ingenieria-economica.proyectos.escenarios.edit', [$proyecto, $escenario]) }}">Editar</a>
-
-        @include('ingenieria-economica._eliminar',['ruta'=>route('ingenieria-economica.proyectos.escenarios.destroy',[$proyecto,$escenario]),'nombre'=>$escenario->nombre,'accion'=>'Eliminar','conserva'=>'Los resultados guardados y las evidencias se conservan.'])
-                    @unless ($escenario->es_principal)
-                        <form method="POST" action="{{ route('ingenieria-economica.proyectos.escenarios.principal', [$proyecto, $escenario]) }}">
-                            @csrf
-                            @method('PATCH')
-                            <button class="button secondary" type="submit">Definir como principal</button>
-                        </form>
-                    @endunless
-                </div>
-            </li>
-        @empty
-            <li class="muted">Todavía no hay escenarios configurados.</li>
-        @endforelse
-    </ul>
-    @include('ingenieria-economica._paginacion', ['paginas' => $escenarios->withQueryString()->fragment('escenarios')])
-</section>
-
-<p class="muted">Registra los conceptos y consulta los flujos del proyecto antes de comparar alternativas.</p>
+@include('ingenieria-economica.proyectos._recorrido')
 @endsection

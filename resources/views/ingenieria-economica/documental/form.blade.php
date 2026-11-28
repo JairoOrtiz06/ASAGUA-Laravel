@@ -1,8 +1,14 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @section('economia-content')
-@include('ingenieria-economica.documental._cabecera',['titulo'=>'Registrar evidencia'])
-<form class="panel-link economia-form" enctype="multipart/form-data" method="POST" action="{{ route('ingenieria-economica.proyectos.evidencias.store',$proyecto) }}">
+@include('ingenieria-economica.documental._cabecera', [
+    'titulo' => 'Registrar evidencia',
+    'volverTexto' => 'Volver a evidencias',
+    'volverUrl' => ContextoEvaluacion::enlace('evidencias.index', [$proyecto, ...$contexto]),
+])
+<form class="panel-link economia-form" enctype="multipart/form-data" method="POST" action="{{ ContextoEvaluacion::enlace('evidencias.store',[$proyecto, ...$contexto]) }}">
     @csrf
     <div class="form-grid">
         @include('ingenieria-economica._campo',['campo'=>'titulo','etiqueta'=>'Título','obligatorio'=>true,'maximo'=>160])

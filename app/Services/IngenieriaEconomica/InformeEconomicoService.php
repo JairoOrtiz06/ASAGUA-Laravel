@@ -26,10 +26,8 @@ class InformeEconomicoService
     {
         $r = $evaluacion->instantanea;
         unset($r['insumos']);
-        $ids = array_keys($r['alternativas']);
-        $sensibilidad = $this->sensibilidad($p,$evaluacion,$r,$d['sensibilidad_id'] ?? null);
-        $calculos = $this->calculos($p,$ids,$d['calculos'] ?? []);
-        $calidad = $this->calidad->revisar($p,$evaluacion,$sensibilidad,$calculos);
+        ['sensibilidad' => $sensibilidad, 'calculos' => $calculos, 'calidad' => $calidad] =
+            $this->revisarAlcance($p, $evaluacion, $d);
         $estado = $d['estado'] ?? 'preliminar';
 
         return [
@@ -42,6 +40,31 @@ class InformeEconomicoService
             'resumen'=>$this->resumen($r),
             'responsable'=>['id'=>$usuario->id_usuario,'nombre'=>trim($usuario->nombre.' '.$usuario->apellido)],
             'estudiantes'=>$d['estudiantes'] ?? null,'docentes'=>$d['docentes'] ?? null,'comentarios'=>$d['comentarios'] ?? null,
+        ];
+    }
+
+    public function revisarAlcance(Proyecto $proyecto, Evaluacion $evaluacion, array $seleccion, ?array $vigencia = null): array
+    {
+        $resultado = $evaluacion->instantanea;
+        $sensibilidad = $this->sensibilidad($proyecto, $evaluacion, $resultado, $seleccion['sensibilidad_id'] ?? null);
+        $calculos = $this->calculos($proyecto, array_keys($resultado['alternativas']), $seleccion['calculos'] ?? []);
+
+        foreach ($calculos as $calculo) {
+            $escenario = $calculo['datos']['escenario'] ?? null;
+            if (($calculo['datos']['activo']['moneda'] ?? null) !== $resultado['moneda'] || ($escenario && (
+                $escenario['base'] !== $resultado['escenario']['base']
+                || $escenario['horizonte'] !== $resultado['escenario']['horizonte']
+                || $escenario['periodicidad'] !== $resultado['escenario']['periodicidad']
+                || ! BigDecimal::of($escenario['tasa_anual'])->isEqualTo($resultado['escenario']['anual'])
+                || (isset($escenario['id']) && (int) $escenario['id'] !== (int) $evaluacion->escenario_id)))) {
+                throw new DomainException('El cálculo de activos #'.$calculo['id'].' usa otro escenario, fecha base, horizonte, periodicidad, tasa o moneda.');
+            }
+        }
+
+        return [
+            'sensibilidad' => $sensibilidad,
+            'calculos' => $calculos,
+            'calidad' => $this->calidad->revisar($proyecto, $evaluacion, $sensibilidad, $calculos, $vigencia),
         ];
     }
 
@@ -93,11 +116,21 @@ class InformeEconomicoService
             || $base['escenario']['horizonte'] !== $e['horizonte'] || ! BigDecimal::of($base['escenario']['anual'])->isEqualTo($e['anual'])) {
             throw new DomainException('La sensibilidad debe coincidir con la base de la evaluación: escenario, alternativas, perspectiva, moneda y periodicidad.');
         }
-        foreach ($r['alternativas'] as $aid => $a) {
-            foreach (['van','vpc','caue'] as $k) {
-                if (! BigDecimal::of($a['indicadores'][$k])->isEqualTo($base['alternativas'][$aid]['indicadores'][$k])) {
-                    throw new DomainException('Los indicadores de la base de sensibilidad difieren de la evaluación seleccionada.');
-                }
+        if (($s->evaluacion_id !== null && (int) $s->evaluacion_id !== (int) $evaluacion->id)
+            || ! isset($r['insumos'], $datos['insumo_base']['insumos'])
+            || ! $this->calidad->coincidenInsumos($datos['insumo_base']['insumos'], $r['insumos'])) {
+            throw new DomainException('La base de sensibilidad pertenece a otra evaluación o sus insumos difieren. Genérala desde esta evaluación guardada.');
+        }
+        if ((int) $base['referencia'] !== (int) $r['referencia']) {
+            throw new DomainException('La sensibilidad debe usar la misma alternativa de referencia de la evaluación.');
+        }
+        foreach ($r['alternativas'] as $aid => $alternativa) {
+            $simulada = $base['alternativas'][$aid];
+            if (! $this->calidad->coincidenInsumos(
+                array_intersect_key($alternativa, ['indicadores' => true, 'periodos' => true, 'excluidos' => true]),
+                array_intersect_key($simulada, ['indicadores' => true, 'periodos' => true, 'excluidos' => true]),
+            )) {
+                throw new DomainException('Los movimientos o indicadores de la base de sensibilidad difieren de la evaluación seleccionada.');
             }
         }
 

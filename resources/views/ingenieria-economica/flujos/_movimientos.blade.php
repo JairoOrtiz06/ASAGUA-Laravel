@@ -1,3 +1,5 @@
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Concepto;
     use App\Services\IngenieriaEconomica\DecimalFinanciero;
@@ -22,11 +24,11 @@
                 <p>Fuera del flujo de caja. Se muestra en la proyección económica nominal.</p>
             @endisset
             @if ($movimiento['concepto'])
-                <a href="{{ route('ingenieria-economica.proyectos.conceptos.show', [$proyecto, $movimiento['concepto']]) }}">Concepto y evidencias ({{ $movimiento['concepto']->fuentes->count() }})</a>
+                <a href="{{ ContextoEvaluacion::enlace('conceptos.show', [$proyecto, $movimiento['concepto']]) }}">Concepto y evidencias ({{ $movimiento['concepto']->fuentes->count() }})</a>
             @endif
             @if ($movimiento['ajuste'])
                 <p class="description">{{ $movimiento['ajuste']->justificacion }}</p>
-                <form method="POST" onsubmit="return confirm('¿Eliminar este ajuste manual?')" action="{{ route('ingenieria-economica.proyectos.ajustes-flujo.destroy', [$proyecto, $movimiento['ajuste']->id]) }}">
+                <form method="POST" onsubmit="return confirm('¿Eliminar este ajuste manual?')" action="{{ ContextoEvaluacion::enlace('ajustes-flujo.destroy', [$proyecto, $movimiento['ajuste']->id]) }}">
                     @csrf
                     @method('DELETE')
                     <button class="button warning">Eliminar ajuste</button>

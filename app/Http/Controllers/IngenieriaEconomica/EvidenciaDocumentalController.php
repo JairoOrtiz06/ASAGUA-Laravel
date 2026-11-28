@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\IngenieriaEconomica;
 
 use App\Http\Controllers\Controller;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Http\Requests\IngenieriaEconomica\EvidenciaDocumentalRequest;
 use App\Models\IngenieriaEconomica\EvidenciaDocumental;
 use App\Models\IngenieriaEconomica\Proyecto;
@@ -22,8 +23,6 @@ use Throwable;
 
 class EvidenciaDocumentalController extends Controller
 {
-    private const RUTA = 'ingenieria-economica.proyectos.evidencias.';
-
     public function index(Request $request, Proyecto $proyecto, ReferenciaDocumentalService $referencias): View
     {
         Gate::authorize('view', $proyecto);
@@ -31,8 +30,9 @@ class EvidenciaDocumentalController extends Controller
         $destino = isset($filtros['registro']) ? $referencias->resolver($proyecto, $filtros['tipo'], (int) $filtros['registro']) : null;
         abort_if(isset($filtros['registro']) && ! $destino, 404);
         $historica = $proyecto->evaluaciones()->latest('id');
-        $evaluacion = $request->integer('evaluacion_fuentes')
-            ? $historica->findOrFail($request->integer('evaluacion_fuentes')) : $historica->first();
+        $contextoEvaluacion = ContextoEvaluacion::actual();
+        $idVersion = $request->integer('evaluacion_fuentes') ?: $contextoEvaluacion?->historica?->id;
+        $evaluacion = $idVersion ? $historica->findOrFail($idVersion) : ($contextoEvaluacion ? null : $historica->first());
         $versiones = $proyecto->evaluaciones()->select(['id', 'created_at', 'instantanea->escenario->nombre as escenario_historico'])
             ->latest('id')->simplePaginate(10, ['*'], 'versiones')->withQueryString();
         $evidencias = $proyecto->evidenciasDocumentales()->withExists(['vinculos as vinculado_al_destino' => fn ($q) => $q
@@ -51,15 +51,17 @@ class EvidenciaDocumentalController extends Controller
 
         return view('ingenieria-economica.documental.evidencias', [
             'proyecto' => $proyecto, 'evidencias' => $evidencias, 'previas' => $previas,
-            'filtros' => $filtros, 'destino' => $destino, 'evaluacion' => $evaluacion, 'versiones' => $versiones, 'centrales' => $centrales,
+            'contexto' => $this->contexto($request), 'filtros' => $filtros, 'destino' => $destino, 'evaluacion' => $evaluacion, 'versiones' => $versiones, 'centrales' => $centrales,
         ]);
     }
 
-    public function create(Proyecto $proyecto): View
+    public function create(Request $request, Proyecto $proyecto): View
     {
         Gate::authorize('update', $proyecto);
 
-        return view('ingenieria-economica.documental.form', compact('proyecto'));
+        $contexto = $this->contexto($request);
+
+        return view('ingenieria-economica.documental.form', compact('proyecto', 'contexto'));
     }
 
     public function store(EvidenciaDocumentalRequest $request, Proyecto $proyecto, ArchivoDocumentalService $archivos): RedirectResponse
@@ -82,7 +84,7 @@ class EvidenciaDocumentalController extends Controller
             throw $error;
         }
 
-        return $this->detalle($proyecto, $item);
+        return $this->detalle($request, $proyecto, $item);
     }
 
     public function show(Request $request, Proyecto $proyecto, string $evidencia, ReferenciaDocumentalService $referencias, ArchivoDocumentalService $archivos): View
@@ -104,8 +106,10 @@ class EvidenciaDocumentalController extends Controller
         $opciones = $tipo ? $referencias->opciones($proyecto, $tipo, $filtros['q'] ?? '')->withQueryString() : null;
         $faltaRespaldo = $referencias->faltaRespaldo($proyecto, $item, $archivos);
 
+        $contexto = $this->contexto($request);
+
         return view('ingenieria-economica.documental.evidencia', compact(
-            'proyecto', 'item', 'datos', 'tipo', 'filtros', 'seleccionado', 'opciones', 'faltaRespaldo'
+            'proyecto', 'item', 'datos', 'tipo', 'filtros', 'contexto', 'seleccionado', 'opciones', 'faltaRespaldo'
         ));
     }
 
@@ -147,7 +151,7 @@ class EvidenciaDocumentalController extends Controller
             return $item;
         });
 
-        return $this->detalle($proyecto, $item);
+        return $this->detalle($request, $proyecto, $item);
     }
 
     public function estado(EvidenciaDocumentalRequest $request, Proyecto $proyecto, string $evidencia, ReferenciaDocumentalService $referencias, ArchivoDocumentalService $archivos): RedirectResponse
@@ -171,7 +175,7 @@ class EvidenciaDocumentalController extends Controller
             return $item;
         });
 
-        return $this->detalle($proyecto, $item);
+        return $this->detalle($request, $proyecto, $item);
     }
 
     public function vincular(EvidenciaDocumentalRequest $request, Proyecto $proyecto, string $evidencia, ReferenciaDocumentalService $referencias): RedirectResponse
@@ -204,7 +208,7 @@ class EvidenciaDocumentalController extends Controller
             return $item;
         });
 
-        return $this->detalle($proyecto, $item);
+        return $this->detalle($request, $proyecto, $item);
     }
 
     public function desvincular(EvidenciaDocumentalRequest $request, Proyecto $proyecto, string $evidencia, string $vinculo): RedirectResponse
@@ -222,10 +226,10 @@ class EvidenciaDocumentalController extends Controller
             return $item;
         });
 
-        return $this->detalle($proyecto, $item)->with('status', 'Vínculo retirado. La evidencia y su archivo se conservan.');
+        return $this->detalle($request, $proyecto, $item)->with('status', 'Vínculo retirado. La evidencia y su archivo se conservan.');
     }
 
-    public function destroy(Proyecto $proyecto, string $evidencia, DependenciasEconomicas $dependencias, ArchivoDocumentalService $archivos): RedirectResponse
+    public function destroy(Request $request, Proyecto $proyecto, string $evidencia, DependenciasEconomicas $dependencias, ArchivoDocumentalService $archivos): RedirectResponse
     {
         Gate::authorize('update', $proyecto);
         DB::transaction(function () use ($proyecto, $evidencia, $dependencias, $archivos): void {
@@ -253,7 +257,7 @@ class EvidenciaDocumentalController extends Controller
             }
         });
 
-        return redirect()->route(self::RUTA.'index', $proyecto)->with('status', 'Evidencia inicial eliminada.');
+        return redirect()->to(ContextoEvaluacion::enlace('evidencias.index', [$proyecto, ...$this->contexto($request)]))->with('status', 'Evidencia inicial eliminada.');
     }
 
     private function buscar(Proyecto $proyecto, string $id): EvidenciaDocumental
@@ -268,8 +272,13 @@ class EvidenciaDocumentalController extends Controller
         $item->historial()->create(['id_usuario'=>$request->user()->id_usuario,'accion'=>$accion,'datos'=>$datos]);
     }
 
-    private function detalle(Proyecto $proyecto, EvidenciaDocumental $item): RedirectResponse
+    private function contexto(Request $request): array
     {
-        return redirect()->route(self::RUTA.'show', [$proyecto, $item])->with('status', 'Expediente actualizado.');
+        return array_filter(array_intersect_key($request->query(), array_flip(['tipo', 'registro', 'origen', 'evaluacion_fuentes'])), 'is_scalar');
+    }
+
+    private function detalle(Request $request, Proyecto $proyecto, EvidenciaDocumental $item): RedirectResponse
+    {
+        return redirect()->to(ContextoEvaluacion::enlace('evidencias.show', [$proyecto, $item, ...$this->contexto($request)]))->with('status', 'Expediente actualizado.');
     }
 }

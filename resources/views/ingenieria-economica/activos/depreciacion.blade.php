@@ -1,11 +1,13 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @section('economia-content')
 <div class="topbar">
     <div><h2>{{ $activo->clasificacion_contable === 'activo_intangible' ? 'Amortización lineal' : 'Comparar métodos de depreciación' }}</h2><p class="muted">{{ $activo->nombre }}</p></div>
-    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.activos.show', [$proyecto, $activo]) }}">← Activo</a>
+    <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('activos.show', [$proyecto, $activo]) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Activo</a>
 </div>
-<form class="panel-link economia-form" method="POST" action="{{ route('ingenieria-economica.proyectos.activos.depreciacion.store', [$proyecto, $activo]) }}">
+<form class="panel-link economia-form" method="POST" action="{{ ContextoEvaluacion::enlace('activos.depreciacion.store', [$proyecto, $activo]) }}">
     @csrf
     <div class="form-grid">
         @include('ingenieria-economica._campo', ['campo' => 'fecha_corte', 'etiqueta' => 'Fecha de corte contable', 'tipo' => 'date', 'ayuda' => 'Incluye el día de corte. Si queda vacía se calcula toda la vida útil.'])

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\IngenieriaEconomica;
 
 use App\Http\Controllers\Controller;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Http\Requests\IngenieriaEconomica\AjusteFlujoRequest;
 use App\Http\Requests\IngenieriaEconomica\ConsultaFlujosRequest;
 use App\Models\IngenieriaEconomica\AjusteFlujo;
@@ -35,10 +36,9 @@ class AjusteFlujoController extends Controller
         $ajuste->usuario()->associate($request->user());
         $ajuste->save();
 
-        return redirect()->route('ingenieria-economica.proyectos.flujos.index', [
-            'proyecto' => $proyecto, 'escenario_id' => $escenario->id,
-            'alternativas' => [$alternativa->id], 'moneda' => $ajuste->moneda,
-        ])->with('status', 'Ajuste manual registrado.');
+        return redirect()->to(ContextoEvaluacion::enlace('flujos.index', [$proyecto] + (ContextoEvaluacion::actual() ? [] : [
+            'escenario_id' => $escenario->id, 'alternativas' => [$alternativa->id], 'moneda' => $ajuste->moneda,
+        ])))->with('status', 'Ajuste manual registrado.');
     }
 
     public function destroy(Proyecto $proyecto, int $ajuste): RedirectResponse
@@ -50,9 +50,8 @@ class AjusteFlujoController extends Controller
             ->findOrFail($ajuste);
         $registro->delete();
 
-        return redirect()->route('ingenieria-economica.proyectos.flujos.index', [
-            'proyecto' => $proyecto, 'escenario_id' => $registro->escenario_id,
-            'alternativas' => [$registro->alternativa_id], 'moneda' => $registro->moneda,
-        ])->with('status', 'Ajuste manual eliminado.');
+        return redirect()->to(ContextoEvaluacion::enlace('flujos.index', [$proyecto] + (ContextoEvaluacion::actual() ? [] : [
+            'escenario_id' => $registro->escenario_id, 'alternativas' => [$registro->alternativa_id], 'moneda' => $registro->moneda,
+        ])))->with('status', 'Ajuste manual eliminado.');
     }
 }

@@ -5,7 +5,8 @@ namespace App\Http\Controllers\IngenieriaEconomica;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IngenieriaEconomica\ProyectoRequest;
 use App\Models\IngenieriaEconomica\Proyecto;
-use App\Services\IngenieriaEconomica\CalidadProyectoService;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
+use App\Services\IngenieriaEconomica\ProgresoEvaluacionService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,12 +19,18 @@ class ProyectoController extends Controller
     {
         Gate::authorize('viewAny', Proyecto::class);
 
-        $proyectos = Proyecto::query()
-            ->whereBelongsTo($request->user(), 'usuario')
-            ->latest('id')
-            ->paginate(15);
+        $consulta = $request->query('buscar');
+        $busqueda = is_string($consulta) ? trim($consulta) : '';
+        $proyectos = Proyecto::query()->whereBelongsTo($request->user(), 'usuario');
 
-        return view('ingenieria-economica.proyectos.index', compact('proyectos'));
+        if ($busqueda !== '') {
+            $nombre = strtr(mb_strtolower($busqueda), ['!' => '!!', '%' => '!%', '_' => '!_']);
+            $proyectos->whereRaw("LOWER(nombre) LIKE ? ESCAPE '!'", ['%'.$nombre.'%']);
+        }
+
+        $proyectos = $proyectos->latest('id')->paginate(15)->appends(['buscar' => $busqueda !== '' ? $busqueda : null]);
+
+        return view('ingenieria-economica.proyectos.index', compact('proyectos', 'busqueda'));
     }
 
     public function create(): View
@@ -42,32 +49,16 @@ class ProyectoController extends Controller
         return redirect()->route('ingenieria-economica.proyectos.show', $proyecto)->with('status', 'Proyecto creado.');
     }
 
-    public function show(Proyecto $proyecto, CalidadProyectoService $calidadProyecto): View
+    public function show(Proyecto $proyecto, ProgresoEvaluacionService $servicio): View
     {
         Gate::authorize('view', $proyecto);
 
-        $proyecto->load('escenarioPrincipal');
-        $alternativas = $proyecto->alternativas()->orderBy('id')->paginate(15, pageName: 'alternativas');
-        $escenarios = $proyecto->escenarios()->orderByDesc('es_principal')->orderBy('id')->paginate(15, pageName: 'escenarios');
+        $proyecto->load('escenarioPrincipal')->loadCount(['alternativas', 'escenarios']);
+        $contexto = ContextoEvaluacion::actual();
+        $progreso = $servicio->revisar($proyecto, $contexto);
+        $hayInformes = ! $contexto && $proyecto->informesEconomicos()->exists();
 
-        $ultimaEvaluacion = $proyecto->evaluaciones()->latest('id')->first();
-        $calidad = $calidadProyecto->revisar($proyecto, $ultimaEvaluacion);
-        $siguiente = match (true) {
-            $alternativas->total() === 0 => ['Agregar una alternativa', route('ingenieria-economica.proyectos.alternativas.create', $proyecto)],
-            $escenarios->total() === 0 => ['Configurar un escenario', route('ingenieria-economica.proyectos.escenarios.create', $proyecto)],
-            ! $proyecto->escenarioPrincipal => ['Seleccionar escenario principal', '#escenarios'],
-            $proyecto->escenarioPrincipal->tasa_efectiva_anual === null => [
-                'Configurar la TMAR', route('ingenieria-economica.proyectos.escenarios.edit', [$proyecto, $proyecto->escenarioPrincipal]),
-            ],
-            ! $proyecto->conceptos()->exists() => [
-                'Registrar un concepto', route('ingenieria-economica.proyectos.conceptos.create', [$proyecto, 'alternativa_id' => $alternativas->first()?->id]),
-            ],
-            $ultimaEvaluacion === null => ['Proyectar flujos de efectivo', route('ingenieria-economica.proyectos.flujos.index', $proyecto)],
-            ! $calidad['puede_validar'] => ['Revisar requisitos documentales', route('ingenieria-economica.proyectos.validacion', $proyecto)],
-            default => ['Consultar informes', route('ingenieria-economica.proyectos.informes.index', $proyecto)],
-        };
-
-        return view('ingenieria-economica.proyectos.show', compact('proyecto', 'alternativas', 'escenarios', 'calidad', 'siguiente'));
+        return view('ingenieria-economica.proyectos.show', compact('proyecto', 'contexto', 'progreso', 'hayInformes'));
     }
 
     public function edit(Proyecto $proyecto): View
@@ -81,7 +72,7 @@ class ProyectoController extends Controller
     {
         $proyecto->update($request->validated());
 
-        return redirect()->route('ingenieria-economica.proyectos.show', $proyecto)->with('status', 'Proyecto actualizado.');
+        return redirect()->to(ContextoEvaluacion::enlace('show', $proyecto))->with('status', 'Proyecto actualizado.');
     }
 
     public function destroy(Proyecto $proyecto): RedirectResponse

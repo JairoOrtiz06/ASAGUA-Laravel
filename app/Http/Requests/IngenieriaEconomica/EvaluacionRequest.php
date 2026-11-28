@@ -3,7 +3,7 @@
 namespace App\Http\Requests\IngenieriaEconomica;
 
 use App\Models\IngenieriaEconomica\Evaluacion;
-use App\Services\IngenieriaEconomica\ProyeccionFlujosService;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use Illuminate\Validation\Rule;
 
 class EvaluacionRequest extends ConfiguracionRequest
@@ -27,14 +27,7 @@ class EvaluacionRequest extends ConfiguracionRequest
     {
         $proyecto = $this->route('proyecto');
 
-        $reglas = [
-            'escenario_id' => ['required', 'integer', Rule::exists('ie_escenarios', 'id')->where('proyecto_id', $proyecto->id)],
-            'alternativas' => ['required', 'array', 'min:1', 'max:10'],
-            'alternativas.*' => ['required', 'integer', 'distinct', Rule::exists('ie_alternativas', 'id')->where('proyecto_id', $proyecto->id)],
-            'referencia_id' => ['nullable', 'integer', Rule::in(array_filter((array) $this->input('alternativas', []), 'is_scalar'))],
-            'moneda' => ['required', 'regex:/^[A-Z]{3}$/D'],
-            'periodicidad' => ['required', Rule::in(array_keys(ProyeccionFlujosService::AGRUPACIONES))],
-            'perspectiva' => ['required', Rule::in(array_keys(Evaluacion::PERSPECTIVAS_PRESENTACION))],
+        $reglas = ContextoEvaluacion::reglas($proyecto, $this->input('alternativas')) + [
             'equivalencia' => ['sometimes', 'boolean'],
             'supuestos' => ['nullable', 'string', 'max:5000'],
             'fiscal' => ['exclude_unless:perspectiva,fiscal', 'required', 'array:tratamiento,tasa,tasa_venta,vigente_desde,vigente_hasta,evidencia,estado,nota,conciliado,alternativas'],

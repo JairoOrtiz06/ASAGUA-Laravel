@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\CalculoActivo;
     use App\Models\IngenieriaEconomica\FuenteActivo;
@@ -15,10 +17,10 @@
 <div class="topbar">
     <div><h2>{{ $activo->nombre }}</h2><p class="muted">{{ $proyecto->nombre }} · {{ $activo->alternativa?->nombre ?? 'Compartido en el proyecto' }}</p></div>
     <div class="actions">
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.evidencias.index',[$proyecto,'tipo'=>'activo','registro'=>$activo->id]) }}">Respaldo documental</a>
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.activos.index', $proyecto) }}">← Activos</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.activos.edit', [$proyecto, $activo]) }}">Editar</a>
-        @include('ingenieria-economica._eliminar',['ruta'=>route('ingenieria-economica.proyectos.activos.destroy',[$proyecto,$activo]),'nombre'=>$activo->nombre,'accion'=>'Eliminar','conserva'=>'Los cálculos, documentos y movimientos vinculados se conservan.'])
+        <a class="button secondary" href="{{ ContextoEvaluacion::enlace('evidencias.index',[$proyecto,'tipo'=>'activo','registro'=>$activo->id]) }}">Respaldo documental</a>
+        <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('activos.index', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Activos</a>
+        <a class="button" href="{{ ContextoEvaluacion::enlace('activos.edit', [$proyecto, $activo]) }}">Editar</a>
+        @include('ingenieria-economica._eliminar',['ruta'=>ContextoEvaluacion::enlace('activos.destroy',[$proyecto,$activo]),'nombre'=>$activo->nombre,'accion'=>'Eliminar','conserva'=>'Los cálculos, documentos y movimientos vinculados se conservan.'])
 
     </div>
 </div>
@@ -50,14 +52,14 @@
         @endforeach
     </dl>
     @if ($tablaContable)
-        <p><a href="{{ route('ingenieria-economica.proyectos.activos.calculos.show',[$proyecto,$activo,$ultimoCalculoContable]) }}">Último cálculo contable</a>
+        <p><a href="{{ ContextoEvaluacion::enlace('activos.calculos.show',[$proyecto,$activo,$ultimoCalculoContable]) }}">Último cálculo contable</a>
         del {{ $ultimoCalculoContable->created_at->format('d/m/Y') }}.
         @foreach ($tablaContable['metodos'] as $metodo=>$tabla)
             {{ $metodo === 'lineal' ? 'Método lineal' : 'Doble saldo decreciente' }} · Saldo al corte {{ $importe($tabla['saldo']) }}.
         @endforeach</p>
     @endif
     @if ($valoracion)
-        <p><a href="{{ route('ingenieria-economica.proyectos.activos.calculos.show',[$proyecto,$activo,$ultimaValoracion]) }}">Última comparación guardada</a>
+        <p><a href="{{ ContextoEvaluacion::enlace('activos.calculos.show',[$proyecto,$activo,$ultimaValoracion]) }}">Última comparación guardada</a>
             · Mercado {{ $importe($valoracion['mercado_actual']) }} · Rescate al horizonte al conservar {{ $importe($valoracion['parametros']['conservar']['rescate']) }}.
             @if ($edad = $valoracion['vidas_economicas']['conservar']['menor_caue']) Menor CAUE entre edades evaluadas · {{ $edad }} años. @endif
         </p>
@@ -67,21 +69,21 @@
 @if ($activo->observaciones)<p class="description">{{ $activo->observaciones }}</p>@endif
 <div class="actions section">
     @if (in_array($activo->clasificacion_contable, ['activo_tangible', 'activo_intangible'], true))
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.activos.depreciacion', [$proyecto, $activo]) }}">
+        <a class="button" href="{{ ContextoEvaluacion::enlace('activos.depreciacion', [$proyecto, $activo]) }}">
             {{ $activo->clasificacion_contable === 'activo_tangible' ? 'Comparar métodos de depreciación' : 'Amortización' }}
         </a>
     @endif
-    <a class="button" href="{{ route('ingenieria-economica.proyectos.activos.reemplazo', [$proyecto, $activo]) }}">Analizar conservación y reemplazo</a>
+    <a class="button" href="{{ ContextoEvaluacion::enlace('activos.reemplazo', [$proyecto, $activo]) }}">Analizar conservación y reemplazo</a>
 </div>
 <section class="section panel-link">
-    <div class="topbar"><h3>Evidencias del activo</h3><a class="button" href="{{ route('ingenieria-economica.proyectos.activos.fuentes.create', [$proyecto, $activo]) }}">Agregar evidencia</a></div>
+    <div class="topbar"><h3>Evidencias del activo</h3><a class="button" href="{{ ContextoEvaluacion::enlace('activos.fuentes.create', [$proyecto, $activo]) }}">Agregar evidencia</a></div>
     <ul class="records">
         @forelse ($activo->fuentes as $fuente)
             <li>
                 <strong>{{ FuenteActivo::USOS[$fuente->uso] }} · {{ $fuente->referencia }}</strong>
                 <div>{{ $fuente->fecha->toDateString() }} · {{ $fuente->importe_observado ?? 'Sin importe observado' }}</div>
                 <p class="description">{{ $fuente->justificacion }}</p>
-        @include('ingenieria-economica._eliminar',['ruta'=>route('ingenieria-economica.proyectos.activos.fuentes.destroy',[$proyecto,$activo,$fuente->id]),'nombre'=>$fuente->referencia,'accion'=>'Retirar referencia','conserva'=>'El documento original se conserva.'])
+        @include('ingenieria-economica._eliminar',['ruta'=>ContextoEvaluacion::enlace('activos.fuentes.destroy',[$proyecto,$activo,$fuente->id]),'nombre'=>$fuente->referencia,'accion'=>'Retirar referencia','conserva'=>'El documento original se conserva.'])
 
                 @if ($fuente->documento)<a href="{{ route('documentos.show', $fuente->documento) }}">{{ $fuente->documento->nombre_documento }}</a>@endif
                 @if ($fuente->detalle?->partida)<a href="{{ route('partidas.show', $fuente->detalle->partida) }}">Partida {{ $fuente->detalle->partida->numero_partida }}</a>@endif
@@ -93,10 +95,10 @@
     </ul>
 </section>
 <section class="section panel-link">
-    <div class="topbar"><h3>Movimientos vinculados</h3><a class="button" href="{{ route('ingenieria-economica.proyectos.activos.flujo.create', [$proyecto, $activo]) }}">Vincular movimiento</a></div>
+    <div class="topbar"><h3>Movimientos vinculados</h3><a class="button" href="{{ ContextoEvaluacion::enlace('activos.flujo.create', [$proyecto, $activo]) }}">Vincular movimiento</a></div>
     <ul class="records">
         @forelse ($activo->conceptos as $concepto)
-            <li><a href="{{ route('ingenieria-economica.proyectos.conceptos.show', [$proyecto, $concepto]) }}">{{ $concepto->nombre }}</a> · {{ $concepto->activo_operacion }}</li>
+            <li><a href="{{ ContextoEvaluacion::enlace('conceptos.show', [$proyecto, $concepto]) }}">{{ $concepto->nombre }}</a> · {{ $concepto->activo_operacion }}</li>
         @empty
             <li>Sin movimientos vinculados.</li>
         @endforelse
@@ -105,7 +107,7 @@
 <section class="section panel-link">
     <h3>Tratamiento fiscal documentado</h3>
     <p class="muted">La cuota fiscal se registra y respalda en la evaluación. Para una disposición, usa la base fiscal pendiente documentada. El precio de venta procede del flujo vinculado al activo.</p>
-    <p><a href="{{ route('ingenieria-economica.proyectos.evaluaciones.index', $proyecto) }}">Abrir Evaluación Económica</a></p>
+    <p><a href="{{ ContextoEvaluacion::enlace('evaluaciones.index', $proyecto) }}">Abrir Evaluación Económica</a></p>
     @foreach (($activo->clasificacion_contable === 'activo_intangible' ? ['amortizacion_fiscal'=>'Amortización fiscal'] : ['depreciacion_fiscal'=>'Depreciación fiscal']) + ['efecto_tributario'=>'Efecto tributario'] as $campo => $etiqueta)
         <p class="description"><strong>{{ $etiqueta }}</strong> · {{ $activo->{$campo} ?? 'Pendiente de documentar' }}</p>
     @endforeach
@@ -114,7 +116,7 @@
     <h3>Historial de cálculos</h3>
     <ul class="records">
         @forelse ($calculos as $calculo)
-            <li><a href="{{ route('ingenieria-economica.proyectos.activos.calculos.show', [$proyecto, $activo, $calculo]) }}">{{ CalculoActivo::METODOS[$calculo->metodo] }} #{{ $calculo->id }}</a> · {{ $calculo->created_at->format('d/m/Y H:i') }}</li>
+            <li><a href="{{ ContextoEvaluacion::enlace('activos.calculos.show', [$proyecto, $activo, $calculo]) }}">{{ CalculoActivo::METODOS[$calculo->metodo] }} #{{ $calculo->id }}</a> · {{ $calculo->created_at->format('d/m/Y H:i') }}</li>
         @empty
             <li>Sin cálculos guardados.</li>
         @endforelse

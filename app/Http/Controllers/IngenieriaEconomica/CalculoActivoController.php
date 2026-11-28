@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\IngenieriaEconomica;
 
 use App\Http\Controllers\Controller;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Http\Requests\IngenieriaEconomica\DepreciacionActivoRequest;
 use App\Http\Requests\IngenieriaEconomica\ReemplazoActivoRequest;
 use App\Models\IngenieriaEconomica\Activo;
@@ -123,7 +124,7 @@ class CalculoActivoController extends Controller
         $calculo->escenario()->associate($escenario);
         $calculo->save();
 
-        return redirect()->route('ingenieria-economica.proyectos.activos.calculos.show', [$proyecto, $activo, $calculo])
+        return redirect()->to(ContextoEvaluacion::enlace('activos.calculos.show', [$proyecto, $activo, $calculo]))
             ->with('status', 'Cálculo guardado como una versión nueva.');
     }
 

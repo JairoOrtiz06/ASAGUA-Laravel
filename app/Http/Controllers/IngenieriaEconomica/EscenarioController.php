@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\IngenieriaEconomica;
 
 use App\Http\Controllers\Controller;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Http\Requests\IngenieriaEconomica\EscenarioRequest;
 use App\Models\IngenieriaEconomica\Escenario;
 use App\Models\IngenieriaEconomica\Proyecto;
@@ -21,6 +22,15 @@ use Illuminate\Validation\ValidationException;
 
 class EscenarioController extends Controller
 {
+    public function index(Proyecto $proyecto): View
+    {
+        Gate::authorize('view', $proyecto);
+
+        $escenarios = $proyecto->escenarios()->orderByDesc('es_principal')->orderBy('id')->paginate(15);
+
+        return view('ingenieria-economica.escenarios.index', compact('proyecto', 'escenarios'));
+    }
+
     public function create(Proyecto $proyecto): View
     {
         Gate::authorize('update', $proyecto);
@@ -91,8 +101,8 @@ class EscenarioController extends Controller
 
     private function volver(Proyecto $proyecto, string $mensaje): RedirectResponse
     {
-        return redirect()->route('ingenieria-economica.proyectos.show', $proyecto)
-            ->with('status', $mensaje)->withFragment('escenarios');
+        return redirect()->to(ContextoEvaluacion::enlace('escenarios.index', $proyecto))
+            ->with('status', $mensaje);
     }
 
     public function destroy(Proyecto $proyecto, Escenario $escenario, DependenciasEconomicas $dependencias): RedirectResponse

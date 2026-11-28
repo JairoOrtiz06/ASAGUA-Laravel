@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\IngenieriaEconomica;
 
 use App\Http\Controllers\Controller;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Http\Requests\IngenieriaEconomica\ConceptoRequest;
 use App\Http\Requests\IngenieriaEconomica\ConsultaConceptosRequest;
 use App\Models\IngenieriaEconomica\Concepto;
@@ -43,7 +44,7 @@ class ConceptoController extends Controller
         Gate::authorize('update', $proyecto);
         $alternativa = $request->validated('alternativa_id');
         $concepto = new Concepto([
-            'moneda' => 'USD', 'periodicidad' => 'unico', 'momento_pago' => 'inicio',
+            'moneda' => ContextoEvaluacion::actual()?->datos['moneda'] ?? 'USD', 'periodicidad' => 'unico', 'momento_pago' => 'inicio',
             'estado_dato' => 'provisional',
             'clasificacion_decision' => $alternativa === null ? 'comun' : 'pendiente_clasificacion',
         ]);
@@ -126,9 +127,9 @@ class ConceptoController extends Controller
             $actual->delete();
         });
 
-        return redirect()->route('ingenieria-economica.proyectos.conceptos.index', [
+        return redirect()->to(ContextoEvaluacion::enlace('conceptos.index', [
             'proyecto' => $proyecto, 'alternativa_id' => $concepto->alternativa_id,
-        ])->with('status', 'Concepto eliminado.');
+        ]))->with('status', 'Concepto eliminado.');
     }
 
     private function formulario(Proyecto $proyecto, Concepto $concepto): View
@@ -144,6 +145,6 @@ class ConceptoController extends Controller
 
     private function detalle(Proyecto $proyecto, Concepto $concepto, string $mensaje): RedirectResponse
     {
-        return redirect()->route('ingenieria-economica.proyectos.conceptos.show', [$proyecto, $concepto])->with('status', $mensaje);
+        return redirect()->to(ContextoEvaluacion::enlace('conceptos.show', [$proyecto, $concepto]))->with('status', $mensaje);
     }
 }

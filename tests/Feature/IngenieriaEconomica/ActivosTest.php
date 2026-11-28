@@ -74,6 +74,32 @@ class ActivosTest extends TestCase
         $this->patch(route(self::R.'update', [$p, $activo]), self::ACTIVO)->assertForbidden();
     }
 
+    public function test_validacion_e_informe_detectan_un_calculo_de_activo_desactualizado(): void
+    {
+        [$proyecto, $alternativa, $escenario, $usuario] = $this->proyecto();
+        $ruta = 'ingenieria-economica.proyectos.';
+        $this->actingAs($usuario)->post(route(self::R.'store', $proyecto), self::ACTIVO + ['alternativa_id' => $alternativa->id])
+            ->assertSessionHasNoErrors();
+        $activo = $proyecto->activos()->sole();
+        $this->post(route(self::R.'depreciacion.store', [$proyecto, $activo]))->assertSessionHasNoErrors();
+        $calculo = $activo->calculos()->sole();
+        $datos = ['escenario_id' => $escenario->id, 'alternativas' => [$alternativa->id],
+            'moneda' => 'USD', 'periodicidad' => 'mensual', 'perspectiva' => 'caja'];
+        $previa = $this->post(route($ruta.'evaluaciones.preview', $proyecto), $datos)->assertOk();
+        $this->post(route($ruta.'evaluaciones.store', $proyecto), $datos + ['firma' => $previa->viewData('firma')])
+            ->assertSessionHasNoErrors();
+        $evaluacion = $proyecto->evaluaciones()->sole();
+        $alcance = [$proyecto, 'contexto' => ['evaluacion_id' => $evaluacion->id, 'calculos' => [$calculo->id]]];
+
+        $this->get(route($ruta.'validacion', $alcance))->assertOk()->assertSee('siguen disponibles y coinciden');
+        $activo->update(['vida_util_anios' => 6]);
+        foreach (['validacion', 'informes.index'] as $pantalla) {
+            $this->get(route($ruta.$pantalla, $alcance))->assertOk()
+                ->assertSee('Los datos actuales del activo difieren de los capturados');
+        }
+        $this->assertSame(5, $calculo->fresh()->instantanea['vida']);
+    }
+
     public function test_reemplazo_anual_con_oportunidad_y_cadena_documentada(): void
     {
         [$p, $a, $escenario, $u] = $this->proyecto();

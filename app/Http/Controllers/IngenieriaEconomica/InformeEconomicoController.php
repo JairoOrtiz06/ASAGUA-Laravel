@@ -5,8 +5,10 @@ namespace App\Http\Controllers\IngenieriaEconomica;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IngenieriaEconomica\InformeEconomicoRequest;
 use App\Models\IngenieriaEconomica\CalculoActivo;
+use App\Models\IngenieriaEconomica\Evaluacion;
 use App\Models\IngenieriaEconomica\Proyecto;
 use App\Services\IngenieriaEconomica\ArchivoDocumentalService;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Services\IngenieriaEconomica\CalidadProyectoService;
 use App\Services\IngenieriaEconomica\GuardarEvaluacionService;
 use App\Services\IngenieriaEconomica\InformeEconomicoService;
@@ -30,13 +32,15 @@ class InformeEconomicoController extends Controller
         $sensibilidades = $proyecto->analisisSensibilidad()->select(['id','nombre','escenario_id','perspectiva'])->latest('id')->get();
         $calculos = CalculoActivo::query()->whereHas('activo',fn ($q)=>$q->where('proyecto_id',$proyecto->id))
             ->with('activo:id,nombre')->select(['id','activo_id','metodo'])->latest('id')->get();
-        $historial = $proyecto->informesEconomicos()->select(['id','evaluacion_id','estado','folio','created_at'])->latest('id')->paginate(20);
+        $historial = $proyecto->informesEconomicos()->select(['id','evaluacion_id','estado','folio','created_at'])->latest('id')->paginate(20)->withQueryString();
         $informe = null;
         $aviso = null;
-        $d = $request->validated();
+        $d = $this->seleccion($request, $proyecto);
         if (! empty($d['evaluacion_id'])) {
             try {
-                $informe = $this->preparar($proyecto,$servicio,$request,$d);
+                $evaluacion = $proyecto->evaluaciones()->findOrFail($d['evaluacion_id']);
+                $this->aplicarVersion($request, $evaluacion, $d);
+                $informe = $servicio->preparar($proyecto, $evaluacion, $d, $request->user());
             } catch (DomainException $error) {
                 $aviso = $error->getMessage();
             }
@@ -45,16 +49,49 @@ class InformeEconomicoController extends Controller
         return view('ingenieria-economica.documental.resultados',compact('proyecto','evaluaciones','sensibilidades','calculos','historial','informe','aviso','d'));
     }
 
-    public function calidad(InformeEconomicoRequest $request, Proyecto $proyecto, CalidadProyectoService $servicio): View
+    public function calidad(InformeEconomicoRequest $request, Proyecto $proyecto, InformeEconomicoService $servicio, CalidadProyectoService $proyectoCalidad): View
     {
-        $evaluacion = $proyecto->evaluaciones()->when($request->validated('evaluacion_id'),
-            fn ($q,$id)=>$q->whereKey($id))->latest('id')->first();
-        $sensibilidad = $proyecto->analisisSensibilidad()->when($evaluacion, fn ($q)=>$q
-            ->where('escenario_id',$evaluacion->escenario_id)->where('perspectiva',$evaluacion->instantanea['perspectiva']))->latest('id')->first();
-        $calidad = $servicio->revisar($proyecto,$evaluacion,$sensibilidad
-            ? ['nombre'=>$sensibilidad->nombre,'estado'=>$sensibilidad->estado,'datos'=>$sensibilidad->instantanea] : null);
+        $d = $this->seleccion($request, $proyecto);
+        $evaluacion = isset($d['evaluacion_id']) ? $proyecto->evaluaciones()->findOrFail($d['evaluacion_id']) : null;
+        $calidad = $aviso = null;
+        if ($evaluacion) {
+            $this->aplicarVersion($request, $evaluacion, $d);
+            try {
+                $calidad = $servicio->revisarAlcance($proyecto, $evaluacion, $d)['calidad'];
+            } catch (DomainException $error) {
+                $aviso = $error->getMessage();
+            }
+        }
 
-        return view('ingenieria-economica.documental.calidad',compact('proyecto','evaluacion','calidad'));
+        if (! $evaluacion && ! ContextoEvaluacion::actual() && empty($d['sensibilidad_id']) && empty($d['calculos'])) {
+            $calidad = $proyectoCalidad->revisar($proyecto);
+        }
+
+        return view('ingenieria-economica.documental.calidad', compact('proyecto', 'evaluacion', 'calidad', 'aviso', 'd'));
+    }
+
+    private function seleccion(InformeEconomicoRequest $request, Proyecto $proyecto): array
+    {
+        $d = $request->validated();
+        $contexto = ContextoEvaluacion::actual();
+        if (! $request->boolean('alcance_aplicado')) {
+            $d += $contexto?->complementos ?? [];
+        }
+        if (! isset($d['evaluacion_id']) && ($evaluacion = $contexto?->evaluacionCompatible($proyecto))) {
+            $d['evaluacion_id'] = $evaluacion->id;
+        }
+
+        return $d;
+    }
+
+    private function aplicarVersion(\Illuminate\Http\Request $request, Evaluacion $evaluacion, array $datos): void
+    {
+        $request->attributes->set(ContextoEvaluacion::class, new ContextoEvaluacion(
+            ContextoEvaluacion::desdeInstantanea($evaluacion->instantanea),
+            null,
+            $evaluacion,
+            array_intersect_key($datos, ['sensibilidad_id' => true, 'calculos' => true]),
+        ));
     }
 
     public function referencias(Proyecto $proyecto, ReferenciaDocumentalService $servicio): View
@@ -78,6 +115,8 @@ class InformeEconomicoController extends Controller
         } catch (DomainException $error) {
             return $this->error($proyecto,$d,$error);
         }
+        $evaluacion = $proyecto->evaluaciones()->findOrFail($d['evaluacion_id']);
+        $this->aplicarVersion($request, $evaluacion, $d);
         $firma = $firmas->firma($informe,$request->user());
         $guardado = null;
 
@@ -111,6 +150,12 @@ class InformeEconomicoController extends Controller
         Gate::authorize('view',$proyecto);
         $guardado = $proyecto->informesEconomicos()->findOrFail($informe);
         $informe = $guardado->instantanea;
+        $evaluacion = $proyecto->evaluaciones()->findOrFail($guardado->evaluacion_id);
+        $seleccion = array_filter([
+            'sensibilidad_id' => $informe['sensibilidad']['id'] ?? null,
+            'calculos' => array_column($informe['calculos'] ?? [], 'id'),
+        ]);
+        $this->aplicarVersion(request(), $evaluacion, $seleccion);
         $posteriores = $proyecto->evidenciasDocumentales()
             ->whereHas('vinculos',fn ($q)=>$q->where('tipo','informe')->where('destino_id',$guardado->id))
             ->get(['id','titulo','estado']);
@@ -133,7 +178,7 @@ class InformeEconomicoController extends Controller
 
     private function error(Proyecto $p, array $d, DomainException $error): RedirectResponse
     {
-        return redirect()->route(self::RUTA.'index',['proyecto'=>$p,'evaluacion_id'=>$d['evaluacion_id']])
+        return redirect()->to(ContextoEvaluacion::enlace('informes.index', [$p, ...array_intersect_key($d, ['evaluacion_id' => true, 'sensibilidad_id' => true, 'calculos' => true])]))
             ->withErrors(['informe'=>$error->getMessage()])->withInput($d);
     }
 }

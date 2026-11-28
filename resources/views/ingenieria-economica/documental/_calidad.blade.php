@@ -1,8 +1,9 @@
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Services\IngenieriaEconomica\CalidadProyectoService;
-    $rutas = 'ingenieria-economica.proyectos.';
     $accionesGrupo = [
-        'Proyecto'=>['Completar proyecto','edit'], 'Alternativas'=>['Revisar alternativas','show'],
+        'Proyecto'=>['Completar proyecto','edit'], 'Alternativas'=>['Revisar alternativas','alternativas.index'],
         'Escenario'=>['Configurar escenario','escenarios.create'], 'Conceptos'=>['Revisar conceptos','conceptos.index'],
         'Flujos'=>['Revisar flujos','flujos.index'], 'Evaluación'=>['Revisar evaluaciones','evaluaciones.index'],
         'Sensibilidad'=>['Revisar sensibilidad','sensibilidad.index'], 'Activos'=>['Revisar activos','activos.index'],
@@ -42,9 +43,9 @@
                         <td>{{ $c['detalle'] }}
                             @if (isset($proyecto))
                             <div class="actions">
-                                <a href="{{ route($rutas.$ruta,$parametros) }}">{{ $accion }}</a>
+                                <a href="{{ ContextoEvaluacion::enlace($ruta, $parametros) }}">{{ $accion }}</a>
                                 @if ($tipoAccion && ($categoria === 'Respaldo documental' || in_array($tipoAccion, ['alternativa','activo'], true)))
-                                    <a href="{{ route($rutas.'evidencias.index',[$proyecto,'tipo'=>$tipoAccion,'registro'=>$idAccion]) }}">{{ $pendiente ? 'Vincular o revisar evidencia' : 'Ver respaldo documental' }}</a>
+                                    <a href="{{ ContextoEvaluacion::enlace('evidencias.index',[$proyecto,'tipo'=>$tipoAccion,'registro'=>$idAccion,'origen'=>'validacion']) }}">{{ $pendiente ? 'Vincular o revisar evidencia' : 'Ver respaldo documental' }}</a>
                                 @endif
                             </div>
                             @endif

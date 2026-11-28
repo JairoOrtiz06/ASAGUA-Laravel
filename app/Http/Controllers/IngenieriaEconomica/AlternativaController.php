@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\IngenieriaEconomica;
 
 use App\Http\Controllers\Controller;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Http\Requests\IngenieriaEconomica\AlternativaRequest;
 use App\Models\IngenieriaEconomica\Alternativa;
 use App\Models\IngenieriaEconomica\Proyecto;
@@ -14,11 +15,13 @@ use Illuminate\View\View;
 
 class AlternativaController extends Controller
 {
-    public function index(Proyecto $proyecto): RedirectResponse
+    public function index(Proyecto $proyecto): View
     {
         Gate::authorize('view', $proyecto);
 
-        return redirect()->route('ingenieria-economica.proyectos.show', $proyecto)->withFragment('alternativas');
+        $alternativas = $proyecto->alternativas()->orderBy('id')->paginate(15);
+
+        return view('ingenieria-economica.alternativas.index', compact('proyecto', 'alternativas'));
     }
 
     public function create(Proyecto $proyecto): View
@@ -75,8 +78,8 @@ class AlternativaController extends Controller
         });
 
         if ($motivo !== null) {
-            return redirect()->route('ingenieria-economica.proyectos.show', $proyecto)
-                ->withErrors(['alternativa' => $motivo])->withFragment('alternativas');
+            return redirect()->to(ContextoEvaluacion::enlace('alternativas.index', $proyecto))
+                ->withErrors(['alternativa' => $motivo]);
         }
 
         return $this->volver($proyecto, 'Alternativa eliminada.');
@@ -84,7 +87,7 @@ class AlternativaController extends Controller
 
     private function volver(Proyecto $proyecto, string $mensaje): RedirectResponse
     {
-        return redirect()->route('ingenieria-economica.proyectos.show', $proyecto)
-            ->with('status', $mensaje)->withFragment('alternativas');
+        return redirect()->to(ContextoEvaluacion::enlace('alternativas.index', $proyecto))
+            ->with('status', $mensaje);
     }
 }

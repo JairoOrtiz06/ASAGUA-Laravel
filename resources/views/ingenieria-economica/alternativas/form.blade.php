@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @section('economia-content')
 @php($editando = $alternativa->exists)
 <div class="topbar">
@@ -7,11 +9,11 @@
         <h2>{{ $editando ? 'Editar alternativa' : 'Nueva alternativa' }}</h2>
         <p class="muted">{{ $proyecto->nombre }}</p>
     </div>
-    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.show', $proyecto) . '#alternativas' }}">← Volver</a>
+    <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('alternativas.index', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Volver a alternativas</a>
 </div>
 
 <section class="panel-link economia-form">
-    <form method="POST" action="{{ $editando ? route('ingenieria-economica.proyectos.alternativas.update', [$proyecto, $alternativa]) : route('ingenieria-economica.proyectos.alternativas.store', $proyecto) }}">
+    <form method="POST" action="{{ $editando ? ContextoEvaluacion::enlace('alternativas.update', [$proyecto, $alternativa]) : ContextoEvaluacion::enlace('alternativas.store', $proyecto) }}">
         @csrf
         @if ($editando)
             @method('PATCH')

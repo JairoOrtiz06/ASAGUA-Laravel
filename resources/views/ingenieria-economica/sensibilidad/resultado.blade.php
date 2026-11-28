@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Evaluacion;
     use App\Services\IngenieriaEconomica\DecimalFinanciero;
@@ -8,7 +10,6 @@
     use App\Services\IngenieriaEconomica\VariablesSensibilidadService;
     use Brick\Math\BigDecimal;
 
-    $ruta = 'ingenieria-economica.proyectos.sensibilidad.';
     $base = $r['base'];
     $d = $r['configuracion'];
     $moneda = $d['moneda'];
@@ -29,7 +30,7 @@
 @section('economia-content')
 <div class="topbar">
     <div><h2>{{ $d['nombre'] }}{{ $guardado ? ' #'.$guardado->id : '' }}</h2><p class="muted">{{ $base['proyecto']['nombre'] }} · {{ SensibilidadService::MODOS[$d['modo']] }} · {{ Evaluacion::PERSPECTIVAS[$d['perspectiva']] }}</p></div>
-    <a class="button secondary" href="{{ route($ruta.'index', $proyecto) }}">← Análisis</a>
+    <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('sensibilidad.index', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Análisis</a>
 </div>
 <section class="panel-link">
     <h3>Base, supuestos y advertencias</h3>
@@ -48,7 +49,7 @@
         @endforeach
     </ul>
     @if (! $guardado)
-        <form method="POST" action="{{ route($ruta.'store', $proyecto) }}">
+        <form method="POST" action="{{ ContextoEvaluacion::enlace('sensibilidad.store', $proyecto) }}">
             @csrf
             <input type="hidden" name="parametros" value="{{ $parametros }}">
             <input type="hidden" name="firma" value="{{ $firma }}">
@@ -107,9 +108,9 @@
                         @endforeach
                         <td>
                             @if ($guardado)
-                                <a href="{{ route($ruta.'show', [$proyecto, $guardado, 'memoria' => $i]) }}#memoria">Ver memoria</a>
+                                <a href="{{ ContextoEvaluacion::enlace('sensibilidad.show', [$proyecto, $guardado, 'memoria' => $i]) }}#memoria">Ver memoria</a>
                             @else
-                                <form method="POST" action="{{ route($ruta.'preview', $proyecto) }}#memoria">
+                                <form method="POST" action="{{ ContextoEvaluacion::enlace('sensibilidad.preview', $proyecto) }}#memoria">
                                     @csrf
                                     <input type="hidden" name="parametros" value="{{ $parametros }}">
                                     <button class="button secondary" name="memoria" value="{{ $i }}">Ver memoria</button>

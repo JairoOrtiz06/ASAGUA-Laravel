@@ -1,10 +1,12 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @section('economia-content')
 @include('ingenieria-economica.documental._cabecera',['titulo'=>'Referencias contables'])
 <p>Consulta de solo lectura. El Debe y Haber se presentan como datos del asiento y requieren evidencia adicional para sustentar un cobro o desembolso.</p>
 <ul class="records">@forelse ($items as $item)
-    <li><a href="{{ route('ingenieria-economica.proyectos.evidencias.show',[$proyecto,$item]) }}">{{ $item->titulo }}</a>
+    <li><a href="{{ ContextoEvaluacion::enlace('evidencias.show',[$proyecto,$item]) }}">{{ $item->titulo }}</a>
         @foreach ($item->vinculos as $v)
             <div class="section"><strong>{{ $v->etiqueta }} #{{ $v->destino_id }}</strong> · {{ $v::CONCILIACIONES[$v->conciliacion] }}
                 @include('ingenieria-economica.documental._referencia',['ref'=>$referencias[$v->id],'contable'=>true])

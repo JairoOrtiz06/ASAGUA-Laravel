@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Alternativa;
     use App\Models\IngenieriaEconomica\Escenario;
@@ -21,14 +23,23 @@
     </div>
     <div class="actions">
         @if ($evaluacion)
-            <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.evidencias.index',[$proyecto,'tipo'=>'evaluacion','registro'=>$evaluacion->id,'evaluacion_fuentes'=>$evaluacion->id]) }}">Respaldo documental</a>
+            <a class="button secondary" href="{{ ContextoEvaluacion::enlace('validacion', $proyecto) }}">Validar esta evaluación</a>
+            <a class="button secondary" href="{{ ContextoEvaluacion::enlace('evidencias.index',[$proyecto,'tipo'=>'evaluacion','registro'=>$evaluacion->id,'evaluacion_fuentes'=>$evaluacion->id]) }}">Respaldo documental</a>
         @endif
         @if ($evaluacion && ! isset($resultado['fiscal']))
-            <a class="button" href="{{ route('ingenieria-economica.proyectos.sensibilidad.create', ['proyecto' => $proyecto, 'evaluacion_id' => $evaluacion->id]) }}">Simular esta versión</a>
+            <a class="button" href="{{ ContextoEvaluacion::enlace('sensibilidad.create', ['proyecto' => $proyecto, 'evaluacion_id' => $evaluacion->id]) }}">Simular esta versión</a>
         @endif
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.evaluaciones.index', $proyecto) }}">← Evaluaciones</a>
+        @if ($evaluacion)
+            <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('show', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Volver al proyecto</a>
+        @endif
+        <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('evaluaciones.index', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Evaluaciones</a>
     </div>
 </div>
+
+<p class="muted">{{ $evaluacion ? 'Versión guardada. Estos resultados proceden de su instantánea histórica.' : 'Vista previa calculada. Guarda la evaluación para conservar esta versión.' }}</p>
+@if ($evaluacion)
+    <p><a href="{{ route('ingenieria-economica.proyectos.evaluaciones.index', [$proyecto, ...ContextoEvaluacion::entrada(ContextoEvaluacion::desdeInstantanea($resultado))]) }}#seleccion-evaluacion">Preparar nuevo cálculo con datos actuales</a></p>
+@endif
 
 <section class="panel-link">
     <h3>Parámetros y supuestos</h3>
@@ -49,7 +60,7 @@
     @if ($resultado['supuestos'])<p class="description">{{ $resultado['supuestos'] }}</p>@endif
     @foreach ($resultado['advertencias'] as $aviso)<p class="economia-aviso"><strong>Advertencia.</strong> {{ $aviso }}</p>@endforeach
     @unless ($evaluacion)
-        <form method="POST" action="{{ route('ingenieria-economica.proyectos.evaluaciones.store', $proyecto) }}">
+        <form method="POST" action="{{ ContextoEvaluacion::enlace('evaluaciones.store', $proyecto) }}">
             @csrf
             @foreach ($datos['alternativas'] as $id)
                 <input type="hidden" name="alternativas[]" value="{{ $id }}">

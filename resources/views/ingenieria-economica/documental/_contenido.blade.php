@@ -1,3 +1,5 @@
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Concepto;
     use App\Models\IngenieriaEconomica\Evaluacion;
@@ -38,7 +40,7 @@
             <strong>Bloqueos para emitir como validado</strong>
             <ul>@foreach ($calidad['bloqueos'] as $b)<li>{{ $b['requisito'] }} · {{ $b['detalle'] }}</li>@endforeach</ul>
             @if (!$pdf && isset($proyecto))
-                <a href="{{ route('ingenieria-economica.proyectos.validacion',[$proyecto,'evaluacion_id'=>$informe['evaluacion_id']]) }}">Consultar validación actual del proyecto</a>
+                <a href="{{ ContextoEvaluacion::enlace('validacion',[$proyecto,'evaluacion_id'=>$informe['evaluacion_id']]) }}">Consultar validación actual del proyecto</a>
             @endif
         </div>
     @endif

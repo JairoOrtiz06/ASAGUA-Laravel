@@ -1,12 +1,14 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\FuenteActivo;
     use App\Models\IngenieriaEconomica\FuenteConcepto;
 @endphp
 
 @section('economia-content')
-<div class="topbar"><h2>Agregar evidencia de {{ $activo->nombre }}</h2><a class="button secondary" href="{{ route('ingenieria-economica.proyectos.activos.show', [$proyecto, $activo]) }}">← Activo</a></div>
+<div class="topbar"><h2>Agregar evidencia de {{ $activo->nombre }}</h2><a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('activos.show', [$proyecto, $activo]) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Activo</a></div>
 <details class="section" @if ($filtros) open @endif>
     <summary>Buscar una referencia contable</summary>
     <form class="actions" method="GET">
@@ -19,7 +21,7 @@
         @if ($paginas->nextPageUrl())<a href="{{ $paginas->nextPageUrl() }}">Siguiente</a>@endif
     </nav>
 </details>
-<form class="panel-link economia-form" method="POST" action="{{ route('ingenieria-economica.proyectos.activos.fuentes.store', [$proyecto, $activo]) }}">
+<form class="panel-link economia-form" method="POST" action="{{ ContextoEvaluacion::enlace('activos.fuentes.store', [$proyecto, $activo]) }}">
     @csrf
     <div class="form-grid">
         @include('ingenieria-economica._campo', ['campo' => 'uso', 'etiqueta' => 'Uso de la evidencia', 'tipo' => 'select', 'opciones' => FuenteActivo::USOS, 'obligatorio' => true])

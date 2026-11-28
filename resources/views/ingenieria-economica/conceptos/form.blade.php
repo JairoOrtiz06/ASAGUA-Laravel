@@ -1,12 +1,14 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Concepto;
 
     $editando = $concepto->exists;
     $regresar = $editando
-        ? route('ingenieria-economica.proyectos.conceptos.show', [$proyecto, $concepto])
-        : route('ingenieria-economica.proyectos.conceptos.index', ['proyecto' => $proyecto, 'alternativa_id' => $concepto->alternativa_id]);
+        ? ContextoEvaluacion::enlace('conceptos.show', [$proyecto, $concepto])
+        : ContextoEvaluacion::enlace('conceptos.index', ['proyecto' => $proyecto, 'alternativa_id' => $concepto->alternativa_id]);
 @endphp
 
 @section('economia-content')
@@ -15,12 +17,12 @@
         <h2>{{ $editando ? 'Editar concepto' : 'Nuevo concepto económico' }}</h2>
         <p class="muted">{{ $proyecto->nombre }} · {{ $concepto->alternativa?->nombre ?? 'Común del proyecto' }}</p>
     </div>
-    <a class="button secondary" href="{{ $regresar }}">← Volver</a>
+    <a class="button button-regresar" href="{{ $regresar }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Volver</a>
 </div>
 
-<form class="panel-link economia-form" method="POST" action="{{ $editando ? route('ingenieria-economica.proyectos.conceptos.update', [$proyecto, $concepto]) : route('ingenieria-economica.proyectos.conceptos.store', $proyecto) }}" @if ($escenarios->isNotEmpty()) data-vista-previa="{{ $editando
-        ? route('ingenieria-economica.proyectos.conceptos.previsualizarEdicion', [$proyecto, $concepto])
-        : route('ingenieria-economica.proyectos.conceptos.previsualizar', $proyecto) }}" data-vista-inicial="{{ $editando ? 1 : 0 }}" @endif>
+<form class="panel-link economia-form" method="POST" action="{{ $editando ? ContextoEvaluacion::enlace('conceptos.update', [$proyecto, $concepto]) : ContextoEvaluacion::enlace('conceptos.store', $proyecto) }}" @if ($escenarios->isNotEmpty()) data-vista-previa="{{ $editando
+        ? ContextoEvaluacion::enlace('conceptos.previsualizarEdicion', [$proyecto, $concepto])
+        : ContextoEvaluacion::enlace('conceptos.previsualizar', $proyecto) }}" data-vista-inicial="{{ $editando ? 1 : 0 }}" @endif>
     @csrf
     @if ($editando) @method('PATCH') @endif
     <h3>Información básica</h3>
@@ -93,7 +95,7 @@
         @include('ingenieria-economica._campo', ['campo' => 'observaciones', 'etiqueta' => 'Observaciones', 'tipo' => 'textarea', 'valor' => $concepto->observaciones])
         </div>
         @if ($editando)
-            <a href="{{ route('ingenieria-economica.proyectos.evidencias.index',[$proyecto,'tipo'=>'concepto','registro'=>$concepto->id]) }}">Revisar o vincular evidencias</a>
+            <a href="{{ ContextoEvaluacion::enlace('evidencias.index',[$proyecto,'tipo'=>'concepto','registro'=>$concepto->id,'origen'=>'editar-concepto']) }}">Revisar o vincular evidencias</a>
         @else
             <p class="muted">Podrás vincular evidencias desde el detalle del concepto guardado.</p>
         @endif
@@ -102,12 +104,12 @@
         <h3>Vista previa del calendario</h3>
         @if ($escenarios->isNotEmpty())
             @include('ingenieria-economica._campo',['campo'=>'escenario_calendario','etiqueta'=>'Escenario para la vista previa',
-                'tipo'=>'select','opciones'=>$escenarios,'valor'=>$escenarios->keys()->first()])
+                'tipo'=>'select','opciones'=>$escenarios,'valor'=>ContextoEvaluacion::actual()?->datos['escenario_id'] ?? $escenarios->keys()->first()])
             <div class="section" data-resultado role="status">Completa los datos para revisar las fechas y el importe nominal.</div>
             <div class="actions section"><button type="button" data-actualizar class="button secondary">Actualizar vista previa</button></div>
             <noscript><p>Activa JavaScript para actualizar la vista previa. Puedes guardar el formulario normalmente.</p></noscript>
         @else
-            <p><a href="{{ route('ingenieria-economica.proyectos.escenarios.create',$proyecto) }}">Configura un escenario</a> para comprobar el calendario.</p>
+            <p><a href="{{ ContextoEvaluacion::enlace('escenarios.create',$proyecto) }}">Configura un escenario</a> para comprobar el calendario.</p>
         @endif
     </section>
     <div class="actions section"><button class="button" type="submit">Guardar concepto</button></div>

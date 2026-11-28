@@ -7,6 +7,7 @@ use App\Http\Requests\IngenieriaEconomica\FlujoActivoRequest;
 use App\Http\Requests\IngenieriaEconomica\FuenteActivoRequest;
 use App\Models\IngenieriaEconomica\Activo;
 use App\Models\IngenieriaEconomica\Proyecto;
+use App\Services\IngenieriaEconomica\ContextoEvaluacion;
 use App\Services\IngenieriaEconomica\IntegracionActivoService;
 use DomainException;
 use App\Services\IngenieriaEconomica\ReferenciaDocumentalService;
@@ -46,7 +47,7 @@ class IntegracionActivoController extends Controller
     {
         $activo->fuentes()->create($request->validated());
 
-        return redirect()->route('ingenieria-economica.proyectos.activos.show', [$proyecto, $activo])->with('status', 'Evidencia vinculada.');
+        return redirect()->to(ContextoEvaluacion::enlace('activos.show', [$proyecto, $activo]))->with('status', 'Evidencia vinculada.');
     }
 
     public function flujo(Proyecto $proyecto, Activo $activo): View
@@ -70,7 +71,7 @@ class IntegracionActivoController extends Controller
             throw ValidationException::withMessages(['movimiento' => $error->getMessage()]);
         }
 
-        return redirect()->route('ingenieria-economica.proyectos.conceptos.show', [$proyecto, $concepto])
+        return redirect()->to(ContextoEvaluacion::enlace('conceptos.show', [$proyecto, $concepto]))
             ->with('status', 'Movimiento vinculado al activo.');
     }
 
@@ -88,7 +89,7 @@ class IntegracionActivoController extends Controller
             $cita->delete();
         });
 
-        return redirect()->route('ingenieria-economica.proyectos.activos.show', [$proyecto, $activo])
+        return redirect()->to(ContextoEvaluacion::enlace('activos.show', [$proyecto, $activo]))
             ->with('status', 'Referencia retirada. El documento original se conserva.');
     }
 }

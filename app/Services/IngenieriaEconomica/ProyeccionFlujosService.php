@@ -82,6 +82,7 @@ class ProyeccionFlujosService
             $periodos = $this->periodos($base, $meses, $paso);
             $avisos = [];
             $excluidos = [];
+            $incidencias = [];
 
             if ($conceptos->isEmpty()) {
                 $avisos[] = 'Faltan conceptos propios registrados para esta alternativa.';
@@ -93,6 +94,7 @@ class ProyeccionFlujosService
             foreach ($conceptos->concat($comunes) as $concepto) {
                 $this->advertir($concepto, $moneda, $avisos);
                 if ($concepto->moneda !== $moneda) {
+                    $incidencias[] = ['codigo' => 'moneda', 'nombre' => $concepto->nombre, 'id' => $concepto->id];
                     continue;
                 }
 
@@ -104,6 +106,7 @@ class ProyeccionFlujosService
                     $this->incorporar($movimiento, $periodos, $excluidos, $base, $fin, $paso, $pasoEscenario, $proyecto->tipo_decision);
                 }
                 if (! $hayMovimientos) {
+                    $incidencias[] = ['codigo' => 'sin_pagos', 'nombre' => $concepto->nombre, 'id' => $concepto->id];
                     $avisos[] = "«{$concepto->nombre}» no tiene pagos programados para este horizonte.";
                 }
             }
@@ -113,6 +116,8 @@ class ProyeccionFlujosService
                 if ($ajuste->moneda === $moneda) {
                     $movimiento = $this->movimiento($ajuste, $ajuste->fecha_flujo, BigDecimal::of($ajuste->monto));
                     $this->incorporar($movimiento, $periodos, $excluidos, $base, $fin, $paso, $pasoEscenario, $proyecto->tipo_decision);
+                } else {
+                    $incidencias[] = ['codigo' => 'moneda', 'nombre' => $ajuste->nombre, 'id' => null];
                 }
             }
 
@@ -121,7 +126,7 @@ class ProyeccionFlujosService
             $visibles = array_filter($periodos, fn (array $periodo) => $periodo['numero'] >= $desde
                 && ($hasta === null || $periodo['numero'] <= $hasta));
             $grafica = $this->grafica($visibles);
-            $resultado[$id] = compact('alternativa', 'periodos', 'visibles', 'grafica', 'totales', 'avisos', 'excluidos');
+            $resultado[$id] = compact('alternativa', 'periodos', 'visibles', 'grafica', 'totales', 'avisos', 'excluidos', 'incidencias');
         }
 
         return compact('base', 'fin', 'moneda', 'resultado');

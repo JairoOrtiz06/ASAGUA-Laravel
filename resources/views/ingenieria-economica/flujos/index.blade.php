@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\Escenario;
     use App\Services\IngenieriaEconomica\DecimalFinanciero;
@@ -13,10 +15,10 @@
         <p class="muted">{{ $proyecto->nombre }}</p>
     </div>
     <div class="actions">
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.show', $proyecto) }}">← Proyecto</a>
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.index') }}">Cambiar proyecto</a>
-        @if ($escenario && $alternativas->isNotEmpty())
-            <a class="button" href="{{ route('ingenieria-economica.proyectos.ajustes-flujo.create', [
+        <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('show', $proyecto) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Proyecto</a>
+        <a class="button button-regresar" href="{{ route('ingenieria-economica.proyectos.index') }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Cambiar proyecto</a>
+        @if (! $contexto?->historica && $escenario && $alternativas->isNotEmpty())
+            <a class="button" href="{{ ContextoEvaluacion::enlace('ajustes-flujo.create', [
                 'proyecto' => $proyecto, 'escenario_id' => $escenario->id,
                 'alternativas' => $seleccionadas, 'moneda' => $moneda,
             ]) }}">Agregar ajuste manual</a>
@@ -24,10 +26,14 @@
     </div>
 </div>
 
-@if ($escenarios->isEmpty() || $alternativas->isEmpty())
+@if ($contexto?->historica)
+    <p>Los flujos de la evaluación #{{ $contexto->historica->id }} se conservan en su memoria. Una nueva proyección usaría los datos actuales.</p>
+    <a class="button" href="{{ ContextoEvaluacion::enlace('evaluaciones.show', [$proyecto, $contexto->historica]) }}">Ver memoria de la evaluación</a>
+@elseif ($escenarios->isEmpty() || $alternativas->isEmpty())
     <p class="muted">Crea al menos una alternativa y un escenario en el proyecto para generar flujos.</p>
 @else
-    <form class="panel-link" method="GET" action="{{ route('ingenieria-economica.proyectos.flujos.index', $proyecto) }}">
+    <form class="panel-link" method="GET" action="{{ ContextoEvaluacion::enlace('flujos.index', $proyecto) }}">
+        @include('ingenieria-economica._contexto-campos')
         <div class="form-grid">
             @include('ingenieria-economica._campo', [
                 'campo' => 'escenario_id', 'etiqueta' => 'Escenario', 'tipo' => 'select', 'opciones' => $escenarios->pluck('nombre', 'id'),
@@ -66,6 +72,7 @@
 @endif
 
 @if ($proyeccion)
+    <p><a class="button secondary" href="{{ route('ingenieria-economica.proyectos.evaluaciones.index', [$proyecto, ...$paraEvaluar]) }}#seleccion-evaluacion">Usar esta selección en evaluación</a></p>
     <p class="section muted">Base {{ $proyeccion['base']->format('d/m/Y') }} · Cierre {{ $proyeccion['fin']->format('d/m/Y') }} ·
         {{ $moneda }} · Período original {{ strtolower(Escenario::PERIODOS[$escenario->periodicidad]) }}.
         Los saldos son nominales acumulados sin descuento. Las valoraciones económicas se muestran aparte de la caja.</p>

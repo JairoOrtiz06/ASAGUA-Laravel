@@ -19,7 +19,7 @@
         <h2>{{ $titulo }}</h2>
         <p class="muted">Escribe la tasa en porcentaje. Usa 0.25 para 0.25 %.</p>
     </div>
-    <a class="button secondary" href="{{ route('ingenieria-economica.herramientas.index') }}">← Herramientas</a>
+    <a class="button button-regresar" href="{{ route('ingenieria-economica.herramientas.index') }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Herramientas</a>
 </div>
 
 <section class="panel-link economia-form">

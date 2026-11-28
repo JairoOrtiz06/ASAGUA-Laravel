@@ -1,14 +1,16 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @section('economia-content')
 <div class="topbar">
     <div><h2>Conservación y reemplazo</h2><p class="muted">Activo existente · {{ $activo->nombre }} · {{ $activo->moneda }}</p></div>
-    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.activos.show', [$proyecto, $activo]) }}">← Activo</a>
+    <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('activos.show', [$proyecto, $activo]) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Activo</a>
 </div>
 @if ($escenarios->isEmpty())
     <p>Registra un escenario con TMAR antes de comparar.</p>
 @else
-    <form class="panel-link" method="POST" action="{{ route('ingenieria-economica.proyectos.activos.reemplazo.store', [$proyecto, $activo]) }}">
+    <form class="panel-link" method="POST" action="{{ ContextoEvaluacion::enlace('activos.reemplazo.store', [$proyecto, $activo]) }}">
         @csrf
         <div class="form-grid">
             @include('ingenieria-economica._campo', ['campo' => 'escenario_id', 'etiqueta' => 'Escenario común', 'tipo' => 'select', 'opciones' => $escenarios->mapWithKeys(fn ($item) => [$item->id => $item->nombre.' · '.$item->horizonte_anios.' años · '.$item->periodicidad.' · TEA '.($item->tasa_efectiva_anual === null ? 'pendiente' : \App\Services\IngenieriaEconomica\DecimalFinanciero::porcentaje($item->tasa_efectiva_anual).' %')]), 'obligatorio' => true])
@@ -24,7 +26,7 @@
                 'ayuda'=>'Identifica qué documento respalda mercado, venta, valor en libros o importes cero. Indica la fecha de cada valor si difieren.'])
         </div>
         <p>El valor en libros refleja el saldo contable; el valor de mercado es una estimación. La oportunidad de conservar se mide por la venta neta que se dejaría de obtener.</p>
-        <p><a href="{{ route('ingenieria-economica.proyectos.evidencias.index',[$proyecto,'tipo'=>'activo','registro'=>$activo->id]) }}">Consultar respaldos del activo</a></p>
+        <p><a href="{{ ContextoEvaluacion::enlace('evidencias.index',[$proyecto,'tipo'=>'activo','registro'=>$activo->id,'origen'=>'reemplazo']) }}">Consultar respaldos del activo</a></p>
         <label class="flujo-opcion"><input type="checkbox" name="ceros_documentados" value="1" @checked(old('ceros_documentados'))> Los costos cero consignados están documentados</label>
         <label class="flujo-opcion"><input type="checkbox" name="considerar_retiro" value="1" @checked(old('considerar_retiro'))> Mostrar retiro inmediato sin continuidad del servicio</label>
         @foreach (['conservar' => 'Conservar', 'reemplazar' => 'Reemplazar'] as $opcion => $titulo)

@@ -181,6 +181,10 @@ class EvaluacionFiscalService
             $fiscal['alternativas'][$id] = ['periodos' => $memoria, 'antes' => $indicadoresAntes];
         }
 
+        $idsActivos = collect($fiscal['alternativas'])->flatMap(fn ($a) => collect($a['periodos'])
+            ->flatMap(fn ($periodo) => [...array_keys($periodo['activos']), ...array_keys($periodo['ventas'])]))->unique();
+        $fiscal['activos_verificados'] = $idsActivos->mapWithKeys(fn ($id) => [$id => $activos->get($id)->getAttributes()])->all();
+
         $r['fiscal'] = $fiscal;
 
         return $r;

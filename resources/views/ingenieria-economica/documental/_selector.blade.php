@@ -1,11 +1,16 @@
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\VinculoDocumental;
-    $rutaDetalle = 'ingenieria-economica.proyectos.evidencias.show';
     $esContable = in_array($tipo, \App\Services\IngenieriaEconomica\ReferenciaDocumentalService::CONTABLES, true);
 @endphp
 <section class="section panel-link" id="vincular">
     <h3>Vincular un registro</h3>
-    <form method="GET" action="{{ route($rutaDetalle, [$proyecto, $item]).'#vincular' }}">
+    <form method="GET" action="{{ ContextoEvaluacion::enlace('evidencias.show', [$proyecto, $item]).'#vincular' }}">
+        @include('ingenieria-economica._contexto-campos')
+        @foreach (array_intersect_key($contexto, ['origen' => true, 'evaluacion_fuentes' => true]) as $clave => $valor)
+            <input type="hidden" name="{{ $clave }}" value="{{ $valor }}">
+        @endforeach
         <div class="form-grid">
             @include('ingenieria-economica._campo',['campo'=>'tipo','etiqueta'=>'Tipo de registro','tipo'=>'select','opciones'=>VinculoDocumental::TIPOS,'valor'=>$tipo,'obligatorio'=>true])
             @include('ingenieria-economica._campo',['campo'=>'q','etiqueta'=>'Buscar por nombre, descripción o número','valor'=>$filtros['q'] ?? null,'maximo'=>100])
@@ -16,7 +21,7 @@
         <ul class="records" aria-label="Registros disponibles">
             @forelse ($opciones as $opcion)
                 <li><a @if (($seleccionado['id'] ?? null) === $opcion['id']) aria-current="true" @endif
-                       href="{{ route($rutaDetalle, [$proyecto, $item, ...array_filter($filtros), 'tipo'=>$tipo, 'registro'=>$opcion['id']]).'#confirmar-vinculo' }}">{{ $opcion['etiqueta'] }}</a>
+                       href="{{ ContextoEvaluacion::enlace('evidencias.show', [$proyecto, $item, ...$contexto, ...array_filter($filtros), 'tipo'=>$tipo, 'registro'=>$opcion['id']]).'#confirmar-vinculo' }}">{{ $opcion['etiqueta'] }}</a>
                     @include('ingenieria-economica.documental._referencia',['ref'=>$opcion,'contable'=>$esContable])
                 </li>
             @empty
@@ -33,7 +38,7 @@
     @endif
     @if ($seleccionado)
         @php($actual = $item->vinculos->first(fn ($v) => $v->tipo === $tipo && $v->destino_id === $seleccionado['id']))
-        <form class="section" id="confirmar-vinculo" method="POST" action="{{ route('ingenieria-economica.proyectos.evidencias.vincular',[$proyecto,$item]) }}">
+        <form class="section" id="confirmar-vinculo" method="POST" action="{{ ContextoEvaluacion::enlace('evidencias.vincular',[$proyecto,$item, ...$contexto]) }}">
             @csrf
             <h4>{{ $actual ? 'Actualizar vínculo' : 'Confirmar vínculo' }} · {{ $seleccionado['etiqueta'] }}</h4>
             <input type="hidden" name="tipo_vinculo" value="{{ $tipo }}">

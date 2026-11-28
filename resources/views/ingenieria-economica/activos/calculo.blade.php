@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\CalculoActivo;
     use App\Models\IngenieriaEconomica\FuenteActivo;
@@ -16,8 +18,8 @@
 <div class="topbar">
     <div><h2>{{ CalculoActivo::METODOS[$calculo->metodo] }} #{{ $calculo->id }}</h2><p class="muted">{{ $r['activo']['nombre'] }} · {{ $calculo->created_at->format('d/m/Y H:i') }} · Motor {{ $calculo->version_motor }} · Contador #{{ $calculo->id_usuario }}</p></div>
     <div class="actions">
-        <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.activos.show', [$proyecto, $activo]) }}">← Activo</a>
-        <a class="button" href="{{ route('ingenieria-economica.proyectos.activos.calculos.csv', [$proyecto, $activo, $calculo]) }}">Descargar CSV</a>
+        <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('activos.show', [$proyecto, $activo]) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Activo</a>
+        <a class="button" href="{{ ContextoEvaluacion::enlace('activos.calculos.csv', [$proyecto, $activo, $calculo]) }}">Descargar CSV</a>
     </div>
 </div>
 @if ($calculo->metodo === 'reemplazo')

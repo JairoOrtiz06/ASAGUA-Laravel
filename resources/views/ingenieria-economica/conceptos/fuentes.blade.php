@@ -1,5 +1,7 @@
 @extends('layouts.ingenieria-economica')
 
+@use('App\Services\IngenieriaEconomica\ContextoEvaluacion')
+
 @php
     use App\Models\IngenieriaEconomica\FuenteConcepto;
 @endphp
@@ -7,10 +9,10 @@
 @section('economia-content')
 <div class="topbar">
     <div><h2>{{ $fuente->exists ? 'Editar evidencia' : 'Agregar evidencia' }}</h2><p class="muted">{{ $concepto->nombre }}</p></div>
-    <a class="button secondary" href="{{ route('ingenieria-economica.proyectos.conceptos.show', [$proyecto, $concepto]) }}">← Concepto</a>
+    <a class="button button-regresar" href="{{ ContextoEvaluacion::enlace('conceptos.show', [$proyecto, $concepto]) }}"><span class="button-regresar-icono" aria-hidden="true">←</span> Concepto</a>
 </div>
 
-<form class="panel-link economia-form" method="POST" action="{{ $fuente->exists ? route('ingenieria-economica.proyectos.conceptos.fuentes.update', [$proyecto, $concepto, $fuente]) : route('ingenieria-economica.proyectos.conceptos.fuentes.store', [$proyecto, $concepto]) }}">
+<form class="panel-link economia-form" method="POST" action="{{ $fuente->exists ? ContextoEvaluacion::enlace('conceptos.fuentes.update', [$proyecto, $concepto, $fuente]) : ContextoEvaluacion::enlace('conceptos.fuentes.store', [$proyecto, $concepto]) }}">
     @csrf
     @if ($fuente->exists) @method('PATCH') @endif
     <div class="form-grid">

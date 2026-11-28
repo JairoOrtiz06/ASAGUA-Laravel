@@ -87,11 +87,46 @@ class EvaluacionService
         return $resultado;
     }
 
+    public function diagnosticarFlujos(array $proyeccion, string $perspectiva): array
+    {
+        $origenes = [];
+        $diagnosticos = [];
+        foreach ($proyeccion['resultado'] as $id => $alternativa) {
+            $diagnosticos[$id] = $this->seleccionarMovimientos($alternativa, $perspectiva === 'fiscal' ? 'caja' : $perspectiva, $origenes);
+        }
+
+        return $diagnosticos;
+    }
+
     private function valorarAlternativa(array $resultado, string $perspectiva, BigDecimal $tasa, BigDecimal $anual, int $horizonte, array &$origenes): array
+    {
+        ['periodos' => $periodos, 'datos' => $datos, 'avisos' => $avisos] =
+            $this->seleccionarMovimientos($resultado, $perspectiva, $origenes);
+        $indicadores = $this->indicadores->calcular($datos, $tasa, $anual, $horizonte);
+        foreach ($indicadores['periodos'] as $numero => $fila) {
+            $periodos[$numero] += $fila;
+        }
+        unset($indicadores['periodos']);
+
+        $excluidos = [];
+        foreach ($resultado['excluidos'] as $movimiento) {
+            $excluidos[] = $this->capturar($movimiento, $origenes);
+        }
+
+        return [
+            'nombre' => $resultado['alternativa']->nombre, 'viabilidad' => $resultado['alternativa']->viabilidad_tecnica,
+            'observaciones' => $resultado['alternativa']->observaciones,
+            'indicadores' => $indicadores, 'periodos' => $periodos,
+            'avisos' => array_values(array_unique($avisos)), 'excluidos' => $excluidos,
+        ];
+    }
+
+    private function seleccionarMovimientos(array $resultado, string $perspectiva, array &$origenes): array
     {
         $periodos = $datos = [];
         $avisos = $resultado['avisos'];
         $incluidos = 0;
+        $incidencias = [];
         foreach ($resultado['periodos'] as $numero => $periodo) {
             $beneficios = $costos = $comun = BigDecimal::zero();
             $movimientos = [];
@@ -109,6 +144,7 @@ class EvaluacionService
                         $captura['motivo'] = 'Valoración económica fuera de caja.';
                     } elseif (! $this->justificado($movimiento)) {
                         $captura['motivo'] = 'Valoración económica sin evidencia ni justificación registrada.';
+                        $incidencias[] = ['codigo' => 'justificacion', 'nombre' => $movimiento['nombre'], 'id' => $movimiento['concepto']?->id];
                         $avisos[] = 'Justifica la valoración de «'.$movimiento['nombre'].'» para incorporarla.';
                     }
                 }
@@ -120,6 +156,7 @@ class EvaluacionService
                     foreach ($claves as $clave) {
                         if (isset($detallesContables[$clave])) {
                             $captura['motivo'] = 'Importe ya registrado con el mismo detalle contable, fecha y dirección.';
+                            $incidencias[] = ['codigo' => 'duplicado', 'nombre' => $movimiento['nombre'], 'id' => $movimiento['concepto']->id];
                             $avisos[] = 'Se detectó un posible duplicado contable en «'.$movimiento['nombre'].'». Revisa la asignación.';
 
                             break;
@@ -160,23 +197,7 @@ class EvaluacionService
             $avisos[] = 'No hay movimientos incluidos en esta perspectiva. Un total de cero no acredita ausencia de costos.';
         }
 
-        $indicadores = $this->indicadores->calcular($datos, $tasa, $anual, $horizonte);
-        foreach ($indicadores['periodos'] as $numero => $fila) {
-            $periodos[$numero] += $fila;
-        }
-        unset($indicadores['periodos']);
-
-        $excluidos = [];
-        foreach ($resultado['excluidos'] as $movimiento) {
-            $excluidos[] = $this->capturar($movimiento, $origenes);
-        }
-
-        return [
-            'nombre' => $resultado['alternativa']->nombre, 'viabilidad' => $resultado['alternativa']->viabilidad_tecnica,
-            'observaciones' => $resultado['alternativa']->observaciones,
-            'indicadores' => $indicadores, 'periodos' => $periodos,
-            'avisos' => array_values(array_unique($avisos)), 'excluidos' => $excluidos,
-        ];
+        return compact('periodos', 'datos', 'avisos', 'incluidos', 'incidencias');
     }
 
     private function justificado(array $movimiento): bool

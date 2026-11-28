@@ -109,6 +109,10 @@ class ExpedienteDocumentalTest extends TestCase
         $this->assertDatabaseCount('ie_informes',0);
         $this->post(route(self::R.'informes.store',$p),$d + ['firma'=>$preview->viewData('firma')])->assertRedirect()->assertSessionHasNoErrors();
         $version = InformeEconomico::query()->sole();
+        $this->get(route(self::R.'show', $p))->assertOk()
+            ->assertSee(route(self::R.'informes.index', $p).'#historial-informes');
+        $this->get(route(self::R.'informes.index', $p))->assertOk()
+            ->assertSeeInOrder(['id="historial-informes"', route(self::R.'informes.show', [$p, $version])], false);
         $pdf = Storage::disk('ingenieria_privada')->get('informes/'.$version->folio.'.pdf');
         $this->assertStringStartsWith('%PDF-',$pdf);
         $this->assertGreaterThan(3,preg_match_all('/\/Type\s*\/Page\b/',$pdf));
@@ -165,8 +169,48 @@ class ExpedienteDocumentalTest extends TestCase
         $vista = $this->post(route(self::R.'informes.preview',$p),$d)->assertOk()->assertSee('Guardar versión y PDF');
         $this->post(route(self::R.'informes.store',$p),$d + ['firma'=>$vista->viewData('firma')])->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame('validado',InformeEconomico::query()->sole()->estado);
+        $recorrido = route(self::R.'show', [$p, 'contexto' => ['evaluacion_id' => $eval->id]]);
+        $this->get($recorrido)->assertOk()->assertSee('Informe validado emitido')->assertSee('Ver informe emitido');
         $c->update(['monto'=>'40']);
         $this->post(route(self::R.'informes.preview',$p),$d)->assertOk()->assertSee('emisión como validado está bloqueada')->assertSee('insumos vigentes');
+        $this->get($recorrido)->assertOk()->assertSee('Informe validado emitido')
+            ->assertSee('Una nueva emisión requiere revisión')->assertSee('Preparar una nueva evaluación');
+    }
+
+    public function test_progreso_prioriza_inconsistencia_de_moneda_y_conserva_version_historica(): void
+    {
+        Storage::fake('ingenieria_privada');
+        [$p, $u, $esc, $alt, $concepto] = $this->proyecto();
+        $alt->update(['viabilidad_tecnica' => 'viable']);
+        $concepto->update(['estado_dato' => 'confirmado']);
+        $eval = $this->evaluacion($p, $u, $esc, $alt);
+        $seleccion = ['escenario_id' => $esc->id, 'alternativas' => [$alt->id], 'moneda' => 'USD',
+            'periodicidad' => 'mensual', 'perspectiva' => 'caja', 'referencia_id' => $alt->id];
+        $ruta = route(self::R.'show', [$p, 'contexto' => $seleccion]);
+        $this->actingAs($u)->get($ruta)->assertOk()->assertSee('La TMAR permite calcular')
+            ->assertSee('La comparación incremental no aplica')->assertSee('Evaluación #'.$eval->id);
+        $concepto->update(['moneda' => 'EUR']);
+        $vista = $this->get($ruta)->assertOk()->assertSee('quedó fuera por usar otra moneda');
+        $progreso = $vista->viewData('progreso');
+        $this->assertSame(3, $progreso['accion']['paso']);
+        $this->assertSame('flujos.index', $progreso['accion']['ruta']);
+        $historial = ['contexto' => ['evaluacion_id' => $eval->id]];
+        $this->get(route(self::R.'show', [$p, ...$historial]))->assertOk()
+            ->assertSee('consulta de instantánea histórica')->assertSee('Cambiaron alternativas, conceptos, fuentes o ajustes');
+        $this->get(route(self::R.'flujos.index', [$p, ...$historial]))->assertOk()->assertSee('Ver memoria de la evaluación');
+    }
+
+    public function test_validacion_e_informes_comparten_la_revision_de_la_version_explicita(): void
+    {
+        Storage::fake('ingenieria_privada');
+        [$p, $u, $esc, $alt] = $this->proyecto();
+        $e = $this->evaluacion($p, $u, $esc, $alt);
+        $consulta = [$p, 'contexto' => ['evaluacion_id' => $e->id]];
+        $validacion = $this->actingAs($u)->get(route(self::R.'validacion', $consulta))->assertOk();
+        $informes = $this->get(route(self::R.'informes.index', $consulta))->assertOk();
+        $this->assertSame($validacion->viewData('calidad'), $informes->viewData('informe')['calidad']);
+        $this->assertSame($e->id, $informes->viewData('informe')['evaluacion_id']);
+        $this->get(route(self::R.'validacion', $p))->assertOk()->assertSee('Sin evaluación guardada');
     }
 
     public function test_selector_busca_y_confirma_registros_autorizados_con_paginacion(): void
@@ -203,6 +247,32 @@ class ExpedienteDocumentalTest extends TestCase
         $this->get(route(self::R.'evidencias.index',[$p,'tipo'=>'concepto','registro'=>$concepto->id]))->assertOk()->assertSee('Vinculada');
         $this->actingAs($otro)->get($url.'?tipo=concepto')->assertForbidden();
         $this->get(route(self::R.'evidencias.show',[$ajeno,$e,'tipo'=>'cuenta']))->assertNotFound();
+    }
+
+    public function test_respaldo_documental_conserva_el_regreso_al_escenario(): void
+    {
+        [$proyecto, $usuario, $escenario, $alternativa, $concepto] = $this->proyecto();
+        $contexto = ['tipo' => 'escenario', 'registro' => $escenario->id];
+        $expediente = route(self::R.'evidencias.index', [$proyecto, ...$contexto]);
+        $this->actingAs($usuario)->get($expediente)->assertOk()
+            ->assertSee('Volver a escenarios')
+            ->assertSee(route(self::R.'escenarios.index', $proyecto), false);
+
+        $this->get(route(self::R.'evidencias.create', [$proyecto, ...$contexto]))->assertOk()
+            ->assertSee('Volver a evidencias')->assertSee($expediente);
+        $respuesta = $this->post(route(self::R.'evidencias.store', [$proyecto, ...$contexto]), $this->datos())
+            ->assertSessionHasNoErrors();
+        $item = $proyecto->evidenciasDocumentales()->sole();
+        $detalle = route(self::R.'evidencias.show', [$proyecto, $item, ...$contexto]);
+        $respuesta->assertRedirect($detalle);
+        $this->get($detalle)->assertOk()->assertSee($expediente)->assertSee('Confirmar vínculo');
+
+        $this->get(route(self::R.'evidencias.index', [$proyecto, 'tipo' => 'alternativa', 'registro' => $alternativa->id]))
+            ->assertOk()->assertSee('Volver a alternativas');
+        $this->get(route(self::R.'evidencias.index', [$proyecto, 'tipo' => 'concepto', 'registro' => $concepto->id, 'origen' => 'editar-concepto']))
+            ->assertOk()->assertSee(route(self::R.'conceptos.edit', [$proyecto, $concepto]), false);
+        $this->get(route(self::R.'evidencias.index', [$proyecto, 'origen' => 'informes']))
+            ->assertOk()->assertSee('Volver a informes');
     }
 
     public function test_respaldo_sin_adjunto_explica_validacion_y_conserva_citas_guardadas(): void
