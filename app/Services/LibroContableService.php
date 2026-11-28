@@ -14,7 +14,7 @@ class LibroContableService
         $query = $this->movimientosQuery()
             // Ordinary details may not have fecha_creacion. The Python
             // movement query uses the partida date for the accounting books.
-            ->selectRaw('p.fecha AS fecha, p.numero_partida, p.concepto, '
+            ->selectRaw('p.fecha AS fecha, p.numero_partida, p.concepto, p.tipo_ajuste, '
                 .'d.id_detalle, d.descripcion, c.id_cuenta, c.codigo_cuenta, '
                 .'c.nombre_cuenta, c.tipo_cuenta, d.debe, d.haber, '
                 .'d.id_documento, d.fecha_creacion')
@@ -33,7 +33,7 @@ class LibroContableService
         $cuenta = CuentaContable::query()->find($cuentaId);
         $query = $this->movimientosQuery()
             ->where('d.id_cuenta', $cuentaId)
-            ->selectRaw('p.fecha AS fecha, p.numero_partida, p.concepto, '
+            ->selectRaw('p.fecha AS fecha, p.numero_partida, p.concepto, p.tipo_ajuste, '
                 .'d.id_detalle, d.descripcion, c.id_cuenta, c.codigo_cuenta, '
                 .'c.nombre_cuenta, c.tipo_cuenta, d.debe, d.haber, '
                 .'d.id_documento, d.fecha_creacion')
@@ -75,6 +75,8 @@ class LibroContableService
         foreach ($this->diario($fechaInicio, $fechaFin) as $movimiento) {
             $clave = $movimiento['id_cuenta'];
             $grupos[$clave] ??= [
+                'id_cuenta' => $clave,
+                'tipo' => $movimiento['tipo_cuenta'],
                 'cuenta' => $movimiento['nombre_cuenta'],
                 'codigo' => $movimiento['codigo_cuenta'],
                 'debe_centavos' => 0,
@@ -102,6 +104,8 @@ class LibroContableService
             $totalAcreedor += $acreedor;
 
             return [
+                'id_cuenta' => $grupo['id_cuenta'],
+                'tipo' => $grupo['tipo'],
                 'cuenta' => $grupo['cuenta'],
                 'codigo' => $grupo['codigo'],
                 'conceptos' => $grupo['conceptos'],
@@ -305,7 +309,7 @@ class LibroContableService
     private function normalizarMovimiento(object $row): array
     {
         $concepto = (string) ($row->concepto ?? '');
-        preg_match('/^\[AJUSTE:([^\]]+)\]\s*(.*)$/', $concepto, $ajuste);
+        $esAjuste = $row->tipo_ajuste !== null;
 
         return [
             'id_detalle' => (int) $row->id_detalle,
@@ -316,9 +320,9 @@ class LibroContableService
             'fecha' => Carbon::parse((string) $row->fecha)->format('Y-m-d'),
             'fecha_creacion' => $row->fecha_creacion,
             'concepto' => $concepto,
-            'concepto_visible' => $ajuste ? ($ajuste[2] ?: $concepto) : $concepto,
-            'es_ajuste' => $ajuste !== [],
-            'tipo_ajuste' => $ajuste[1] ?? null,
+            'concepto_visible' => $esAjuste ? (preg_replace('/^\[AJUSTE:[^\]]+\]\s*/', '', $concepto) ?: $concepto) : $concepto,
+            'es_ajuste' => $esAjuste,
+            'tipo_ajuste' => $row->tipo_ajuste,
             'descripcion' => $row->descripcion,
             'codigo_cuenta' => $row->codigo_cuenta,
             'nombre_cuenta' => $row->nombre_cuenta,

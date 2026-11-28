@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\CuentaContableRequest;
 use App\Models\CuentaContable;
+use App\Services\PartidaService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class CuentaContableController extends Controller
@@ -61,7 +64,30 @@ class CuentaContableController extends Controller
 
     public function update(CuentaContableRequest $request, CuentaContable $cuenta): RedirectResponse
     {
-        $cuenta->update($request->validated());
+        DB::transaction(function () use ($request, $cuenta): void {
+            PartidaService::bloquearRegistro();
+            $cuenta->refresh()->fill($request->validated());
+
+            if ($cuenta->isDirty(['codigo_cuenta', 'nombre_cuenta', 'tipo_cuenta', 'nivel', 'id_cuenta_padre'])) {
+                $padres = CuentaContable::query()->pluck('id_cuenta_padre', 'id_cuenta');
+                $registradas = DB::table('tbldetalles_partida')->distinct()->pluck('id_cuenta');
+                $visitadas = [];
+
+                foreach ($registradas as $id) {
+                    while ($id !== null && ! isset($visitadas[$id])) {
+                        if ((int) $id === (int) $cuenta->getKey()) {
+                            throw ValidationException::withMessages([
+                                'codigo_cuenta' => 'La cuenta o una de sus subcuentas tiene movimientos registrados. Solo se puede cambiar su estado.',
+                            ]);
+                        }
+                        $visitadas[$id] = true;
+                        $id = $padres->get($id);
+                    }
+                }
+            }
+
+            $cuenta->save();
+        });
 
         return redirect()->route('catalogo.index')->with('status', 'Cuenta actualizada correctamente.');
     }

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Carbon;
+
 class HojaTrabajoContableService
 {
     public function __construct(private readonly LibroContableService $libros)
@@ -26,11 +28,23 @@ class HojaTrabajoContableService
             $filas[$clave][$columna]['haber'] += $this->centavos((string) $movimiento['haber']);
         }
 
+        if ($fechaInicio !== null && $fechaInicio !== '') {
+            $diaAnterior = Carbon::parse($fechaInicio)->subDay()->toDateString();
+            foreach ($this->libros->balanceComprobacion(null, $diaAnterior)['cuentas'] as $saldo) {
+                $clave = $saldo['id_cuenta'];
+                $filas[$clave] ??= $this->filaBase($saldo['codigo'], $saldo['cuenta'], $saldo['tipo']);
+                $filas[$clave]['saldo_inicial'] = [
+                    'debe' => $this->centavos($saldo['saldo_deudor']),
+                    'haber' => $this->centavos($saldo['saldo_acreedor']),
+                ];
+            }
+        }
+
         foreach ($filas as &$fila) {
             $fila['balance_ajustado']['debe'] =
-                $fila['balance_comprobacion']['debe'] + $fila['ajustes']['debe'];
+                $fila['saldo_inicial']['debe'] + $fila['balance_comprobacion']['debe'] + $fila['ajustes']['debe'];
             $fila['balance_ajustado']['haber'] =
-                $fila['balance_comprobacion']['haber'] + $fila['ajustes']['haber'];
+                $fila['saldo_inicial']['haber'] + $fila['balance_comprobacion']['haber'] + $fila['ajustes']['haber'];
         }
         unset($fila);
 
@@ -61,6 +75,7 @@ class HojaTrabajoContableService
         $this->formatearFilas($filas);
 
         $totales = [
+            'saldo_inicial' => $this->totales($filas, 'saldo_inicial'),
             'balance_comprobacion' => $this->totales($filas, 'balance_comprobacion'),
             'ajustes' => $this->totales($filas, 'ajustes'),
             'balance_ajustado' => $this->totales($filas, 'balance_ajustado'),
@@ -89,6 +104,7 @@ class HojaTrabajoContableService
             'codigo' => $codigo,
             'cuenta' => $cuenta,
             'tipo' => $tipo,
+            'saldo_inicial' => ['debe' => 0, 'haber' => 0],
             'balance_comprobacion' => ['debe' => 0, 'haber' => 0],
             'ajustes' => ['debe' => 0, 'haber' => 0],
             'balance_ajustado' => ['debe' => 0, 'haber' => 0],
@@ -130,7 +146,7 @@ class HojaTrabajoContableService
     private function formatearFilas(array &$filas): void
     {
         foreach ($filas as &$fila) {
-            foreach (['balance_comprobacion', 'ajustes', 'balance_ajustado', 'estado_resultados', 'balance_general'] as $seccion) {
+            foreach (['saldo_inicial', 'balance_comprobacion', 'ajustes', 'balance_ajustado', 'estado_resultados', 'balance_general'] as $seccion) {
                 $fila[$seccion]['debe'] = $this->formatear($fila[$seccion]['debe']);
                 $fila[$seccion]['haber'] = $this->formatear($fila[$seccion]['haber']);
             }

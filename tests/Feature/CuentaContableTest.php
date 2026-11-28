@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\CuentaContable;
+use App\Models\Partida;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -94,6 +95,39 @@ class CuentaContableTest extends TestCase
 
         $this->assertDatabaseHas('tblcuentascontables', ['id_cuenta' => $parent->id_cuenta]);
         $this->assertDatabaseHas('tblcuentascontables', ['id_cuenta' => $child->id_cuenta]);
+    }
+
+    public function test_ancestor_of_posted_account_cannot_be_reclassified(): void
+    {
+        $admin = User::factory()->create(['rol' => 'Admin']);
+        $parent = CuentaContable::create([
+            'codigo_cuenta' => '1101', 'nombre_cuenta' => 'Efectivo',
+            'tipo_cuenta' => 'Activo', 'nivel' => 3, 'estado' => true,
+        ]);
+        $child = CuentaContable::create([
+            'codigo_cuenta' => '110101', 'nombre_cuenta' => 'Caja',
+            'tipo_cuenta' => 'Activo', 'nivel' => 4,
+            'id_cuenta_padre' => $parent->id_cuenta, 'estado' => true,
+        ]);
+        $partida = Partida::create([
+            'id_usuario' => $admin->id_usuario, 'numero_partida' => 1,
+            'fecha' => '2026-01-01', 'concepto' => 'Saldo inicial',
+        ]);
+        $partida->detalles()->create([
+            'id_usuario' => $admin->id_usuario, 'id_cuenta' => $child->id_cuenta,
+            'debe' => '10.00', 'haber' => '0.00',
+        ]);
+        $datos = [
+            'codigo_cuenta' => '1101', 'nombre_cuenta' => 'Efectivo',
+            'tipo_cuenta' => 'Activo', 'nivel' => 3, 'estado' => 0,
+        ];
+
+        $this->actingAs($admin)->put(route('admin.cuentas.update', $parent), ['tipo_cuenta' => 'Pasivo'] + $datos)
+            ->assertSessionHasErrors('codigo_cuenta');
+        $this->assertSame('Activo', $parent->refresh()->tipo_cuenta);
+
+        $this->put(route('admin.cuentas.update', $parent), $datos)->assertRedirect(route('catalogo.index'));
+        $this->assertFalse($parent->refresh()->estado);
     }
 
     public function test_account_cannot_become_its_own_parent_or_create_a_cycle(): void

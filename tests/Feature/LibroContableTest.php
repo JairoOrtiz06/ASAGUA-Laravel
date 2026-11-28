@@ -21,7 +21,7 @@ class LibroContableTest extends TestCase
             'id_cuenta' => $debe->id_cuenta, 'id_usuario' => $usuario->id_usuario,
             'descripcion' => 'Compra', 'debe' => '100.00', 'haber' => '0.00',
         ]);
-        $febrero = $this->crearPartida($usuario, 2, '2026-02-10', '[AJUSTE:Depreciaciones] Cierre');
+        $febrero = $this->crearPartida($usuario, 2, '2026-02-10', '[AJUSTE:Depreciaciones] Cierre', 'Depreciaciones');
         $febrero->detalles()->create([
             'id_cuenta' => $haber->id_cuenta, 'id_usuario' => $usuario->id_usuario,
             'descripcion' => 'Ajuste', 'debe' => '0.00', 'haber' => '100.00',
@@ -63,7 +63,7 @@ class LibroContableTest extends TestCase
     public function test_mayor_calculates_creditor_balance_and_preserves_adjustment_classification(): void
     {
         [$usuario, $debe, $haber] = $this->baseContable();
-        $partida = $this->crearPartida($usuario, 4, '2026-04-01', '[AJUSTE:Ingresos diferidos] Periodificación');
+        $partida = $this->crearPartida($usuario, 4, '2026-04-01', '[AJUSTE:Ingresos diferidos] Periodificación', 'Ingresos diferidos');
         $partida->detalles()->create([
             'id_cuenta' => $haber->id_cuenta, 'id_usuario' => $usuario->id_usuario,
             'descripcion' => 'Ingreso diferido', 'debe' => '25.00', 'haber' => '100.00',
@@ -106,13 +106,14 @@ class LibroContableTest extends TestCase
         ];
     }
 
-    private function crearPartida(User $usuario, int $numero, string $fecha, string $concepto): Partida
+    private function crearPartida(User $usuario, int $numero, string $fecha, string $concepto, ?string $tipoAjuste = null): Partida
     {
         return Partida::create([
             'id_usuario' => $usuario->id_usuario,
             'numero_partida' => $numero,
             'fecha' => $fecha,
             'concepto' => $concepto,
+            'tipo_ajuste' => $tipoAjuste,
         ]);
     }
 }

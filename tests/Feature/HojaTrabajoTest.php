@@ -21,7 +21,7 @@ class HojaTrabajoTest extends TestCase
             ['id_cuenta' => $ids['caja'], 'id_usuario' => $usuario->id_usuario, 'debe' => '100.00', 'haber' => '0.00'],
             ['id_cuenta' => $ids['ingreso'], 'id_usuario' => $usuario->id_usuario, 'debe' => '0.00', 'haber' => '100.00'],
         ]);
-        $ajuste = $this->partida($usuario, 2, '2026-02-10', '[AJUSTE:Depreciaciones] Ajuste');
+        $ajuste = $this->partida($usuario, 2, '2026-02-10', '[AJUSTE:Depreciaciones] Ajuste', 'Depreciaciones');
         $ajuste->detalles()->createMany([
             ['id_cuenta' => $ids['gasto'], 'id_usuario' => $usuario->id_usuario, 'debe' => '30.00', 'haber' => '0.00'],
             ['id_cuenta' => $ids['proveedor'], 'id_usuario' => $usuario->id_usuario, 'debe' => '0.00', 'haber' => '30.00'],
@@ -61,7 +61,9 @@ class HojaTrabajoTest extends TestCase
 
         $hoja = app(HojaTrabajoContableService::class)->generar('2026-02-01', '2026-02-28');
 
+        $this->assertSame('40.00', $this->importe($hoja, 'Caja corriente', 'saldo_inicial', 'debe'));
         $this->assertSame('25.00', $this->importe($hoja, 'Caja corriente', 'balance_comprobacion', 'debe'));
+        $this->assertSame('65.00', $this->importe($hoja, 'Caja corriente', 'balance_ajustado', 'debe'));
     }
 
     public function test_only_contador_can_consult_the_worksheet(): void
@@ -104,13 +106,14 @@ class HojaTrabajoTest extends TestCase
         return [$usuario, ['caja' => 11, 'proveedor' => 12, 'ingreso' => 13, 'gasto' => 14]];
     }
 
-    private function partida(User $usuario, int $numero, string $fecha, string $concepto): Partida
+    private function partida(User $usuario, int $numero, string $fecha, string $concepto, ?string $tipoAjuste = null): Partida
     {
         return Partida::create([
             'id_usuario' => $usuario->id_usuario,
             'numero_partida' => $numero,
             'fecha' => $fecha,
             'concepto' => $concepto,
+            'tipo_ajuste' => $tipoAjuste,
         ]);
     }
 }
