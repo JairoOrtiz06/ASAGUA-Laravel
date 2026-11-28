@@ -64,8 +64,7 @@ class LibroContableService
     }
 
     /**
-     * Reproduces contabilidad.balance_comprobacion(): agrupa por código y
-     * nombre de cuenta, y calcula los saldos a partir de los movimientos del
+     * Agrupa por cuenta y calcula los saldos a partir de los movimientos del
      * diario sin modificar ningún registro.
      *
      * @return array{cuentas: array<int, array<string, mixed>>, total_debe: string, total_haber: string, total_deudor: string, total_acreedor: string}
@@ -74,7 +73,7 @@ class LibroContableService
     {
         $grupos = [];
         foreach ($this->diario($fechaInicio, $fechaFin) as $movimiento) {
-            $clave = $movimiento['codigo_cuenta'].'\0'.$movimiento['nombre_cuenta'];
+            $clave = $movimiento['id_cuenta'];
             $grupos[$clave] ??= [
                 'cuenta' => $movimiento['nombre_cuenta'],
                 'codigo' => $movimiento['codigo_cuenta'],
@@ -122,135 +121,109 @@ class LibroContableService
         ];
     }
 
-    /**
-     * Reproduces contabilidad.balance_general(), including the original
-     * exclusion of non-current liabilities from the calculated total.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function balanceGeneral(?string $fechaInicio = null, ?string $fechaFin = null): array
     {
-        $cuentas = CuentaContable::query()
-            ->where('estado', true)
-            ->orderBy('codigo_cuenta')
-            ->get()
-            ->keyBy('id_cuenta');
-
-        $hijos = function (int $idPadre) use ($cuentas): array {
-            return $cuentas->filter(fn (CuentaContable $cuenta): bool =>
-                (int) $cuenta->id_cuenta_padre === $idPadre)
-                ->sortBy('codigo_cuenta')
-                ->pluck('nombre_cuenta')
-                ->values()
-                ->all();
-        };
-
-        $totales = [
-            'AC_CORRIENTE' => array_fill_keys($hijos(7), 0),
-            'AC_NO_CORRIENTE' => array_fill_keys($hijos(8), 0),
-            'PAS_CORRIENTE' => array_fill_keys($hijos(9), 0),
-            'PATRIMONIO' => array_fill_keys($hijos(10), 0),
+        $cuentas = CuentaContable::query()->orderBy('codigo_cuenta')->get()->keyBy('id_cuenta');
+        $secciones = [
+            'AC_CORRIENTE' => [],
+            'AC_NO_CORRIENTE' => [],
+            'PAS_CORRIENTE' => [],
+            'PAS_NO_CORRIENTE' => [],
+            'PATRIMONIO' => [],
         ];
 
-        $padresNivel3 = [];
+        $clasificacion = [];
+        $cuentaResultado = null;
         foreach ($cuentas as $id => $cuenta) {
-            $actual = $cuenta;
-            $visitados = [];
-            while ($actual && (int) $actual->nivel !== 3) {
-                if (isset($visitados[$actual->id_cuenta])) {
-                    $actual = null;
-                    break;
-                }
-                $visitados[$actual->id_cuenta] = true;
-                $actual = $cuentas->get($actual->id_cuenta_padre);
+            $tipo = $cuenta->tipo_cuenta;
+            if ($tipo === 'Patrimonio' && $cuenta->nivel === 3
+                && ($cuenta->codigo_cuenta === '3104'
+                    || preg_match('/^resultados? del ejercicio$/iu', trim($cuenta->nombre_cuenta)) === 1)) {
+                $cuentaResultado = $cuenta;
             }
-            $padresNivel3[$id] = $actual?->nombre_cuenta;
-        }
-
-        $agrupadas = [];
-        foreach ($this->diario($fechaInicio, $fechaFin) as $movimiento) {
-            $clave = (string) $movimiento['nombre_cuenta'];
-            $agrupadas[$clave] ??= [
-                'tipo' => $movimiento['tipo_cuenta'],
-                'padre_nivel3' => $padresNivel3[$movimiento['id_cuenta']] ?? null,
-                'debe_centavos' => 0,
-                'haber_centavos' => 0,
-            ];
-            $agrupadas[$clave]['debe_centavos'] += $this->centavos($movimiento['debe']);
-            $agrupadas[$clave]['haber_centavos'] += $this->centavos($movimiento['haber']);
-        }
-
-        $totalIngresos = $totalCostos = $totalGastos = 0;
-        foreach ($agrupadas as $grupo) {
-            if ($grupo['debe_centavos'] === 0 && $grupo['haber_centavos'] === 0) {
+            if (! in_array($tipo, ['Activo', 'Pasivo', 'Patrimonio'], true)) {
                 continue;
             }
 
-            $padre = $grupo['padre_nivel3'];
-            $tipo = $grupo['tipo'];
-            if ($tipo === 'Activo') {
-                if (array_key_exists($padre, $totales['AC_CORRIENTE'])) {
-                    $totales['AC_CORRIENTE'][$padre] += $grupo['debe_centavos'] - $grupo['haber_centavos'];
-                } elseif (array_key_exists($padre, $totales['AC_NO_CORRIENTE'])) {
-                    $totales['AC_NO_CORRIENTE'][$padre] += $grupo['debe_centavos'] - $grupo['haber_centavos'];
+            $mayor = $cuenta;
+            $grupo = null;
+            $visitados = [];
+            for ($actual = $cuenta; $actual && ! isset($visitados[$actual->id_cuenta]); $actual = $cuentas->get($actual->id_cuenta_padre)) {
+                $visitados[$actual->id_cuenta] = true;
+                if ($actual->nivel === 3) {
+                    $mayor = $actual;
                 }
-            } elseif ($tipo === 'Pasivo') {
-                // Pasivo no corriente is intentionally omitted, as in Python.
-                if (array_key_exists($padre, $totales['PAS_CORRIENTE'])) {
-                    $totales['PAS_CORRIENTE'][$padre] += $grupo['haber_centavos'] - $grupo['debe_centavos'];
+                if ($actual->nivel === 2) {
+                    $grupo = $actual;
+                    break;
                 }
-            } elseif ($tipo === 'Patrimonio') {
-                if (array_key_exists($padre, $totales['PATRIMONIO'])) {
-                    $totales['PATRIMONIO'][$padre] += $grupo['haber_centavos'] - $grupo['debe_centavos'];
-                }
-            } elseif ($tipo === 'Ingreso') {
-                $totalIngresos += $grupo['haber_centavos'] - $grupo['debe_centavos'];
-            } elseif ($tipo === 'Gasto') {
-                $saldo = $grupo['debe_centavos'] - $grupo['haber_centavos'];
-                if ($padre !== null && (str_contains($padre, 'COSTO') || $padre === 'COMPRAS')) {
-                    $totalCostos += $saldo;
-                } else {
-                    $totalGastos += $saldo;
-                }
+            }
+
+            $prefijo = substr($cuenta->codigo_cuenta, 0, 2);
+            $nombreGrupo = $grupo?->nombre_cuenta ?? '';
+            $noCorriente = preg_match('/\b(no corrientes?|largo plazo)\b/iu', $nombreGrupo) === 1
+                || ($grupo?->codigo_cuenta ?? $prefijo) === ($tipo === 'Activo' ? '12' : '22');
+
+            $seccion = match ($tipo) {
+                'Activo' => $noCorriente ? 'AC_NO_CORRIENTE' : 'AC_CORRIENTE',
+                'Pasivo' => $noCorriente ? 'PAS_NO_CORRIENTE' : 'PAS_CORRIENTE',
+                'Patrimonio' => 'PATRIMONIO',
+            };
+            $clasificacion[$id] = [$seccion, $mayor];
+        }
+
+        // El balance refleja los saldos acumulados hasta la fecha de corte.
+        $resultado = 0;
+        foreach ($this->diario(null, $fechaFin) as $movimiento) {
+            $id = $movimiento['id_cuenta'];
+            $neto = $this->centavos($movimiento['debe']) - $this->centavos($movimiento['haber']);
+            if (isset($clasificacion[$id])) {
+                [$seccion, $mayor] = $clasificacion[$id];
+                $secciones[$seccion][$mayor->id_cuenta] =
+                    ($secciones[$seccion][$mayor->id_cuenta] ?? 0)
+                    + ($movimiento['tipo_cuenta'] === 'Activo' ? $neto : -$neto);
+            } elseif (in_array($movimiento['tipo_cuenta'], ['Ingreso', 'Gasto', 'Costo'], true)) {
+                $resultado -= $neto;
             }
         }
 
-        $utilidad = $totalIngresos - $totalCostos - $totalGastos;
-        if ($utilidad !== 0 && array_key_exists('RESULTADOS DEL EJERCICIO', $totales['PATRIMONIO'])) {
-            $totales['PATRIMONIO']['RESULTADOS DEL EJERCICIO'] += $utilidad;
+        if ($resultado !== 0) {
+            $id = $cuentaResultado?->id_cuenta ?? 'resultado';
+            $secciones['PATRIMONIO'][$id] = ($secciones['PATRIMONIO'][$id] ?? 0) + $resultado;
         }
 
-        $conSaldo = function (array $items): array {
-            $resultado = [];
-            foreach ($items as $nombre => $importe) {
-                if (abs($importe) > 0) {
-                    $resultado[] = ['cuenta' => $nombre, 'saldo' => $this->formatear($importe)];
-                }
+        $balance = [];
+        $totales = [];
+        foreach ($secciones as $seccion => $saldos) {
+            $totales[$seccion] = array_sum($saldos);
+            $balance[$seccion] = [];
+            foreach (array_filter($saldos) as $id => $saldo) {
+                $cuenta = $cuentas->get($id);
+                $balance[$seccion][] = [
+                    'id_cuenta' => $cuenta?->id_cuenta,
+                    'codigo' => $cuenta?->codigo_cuenta ?? '',
+                    'cuenta' => $cuenta?->nombre_cuenta ?? 'Resultados del ejercicio',
+                    'saldo' => $this->formatear($saldo),
+                ];
             }
-            return $resultado;
-        };
+            usort($balance[$seccion], static fn (array $a, array $b): int => strcmp($a['codigo'], $b['codigo']));
+        }
 
-        $acCorriente = array_sum($totales['AC_CORRIENTE']);
-        $acNoCorriente = array_sum($totales['AC_NO_CORRIENTE']);
-        $pasCorriente = array_sum($totales['PAS_CORRIENTE']);
-        $patrimonio = array_sum($totales['PATRIMONIO']);
-        $activos = $acCorriente + $acNoCorriente;
-        $pasivoPatrimonio = $pasCorriente + $patrimonio;
+        $activos = $totales['AC_CORRIENTE'] + $totales['AC_NO_CORRIENTE'];
+        $pasivos = $totales['PAS_CORRIENTE'] + $totales['PAS_NO_CORRIENTE'];
+        $patrimonio = $totales['PATRIMONIO'];
 
-        return [
-            'AC_CORRIENTE' => $conSaldo($totales['AC_CORRIENTE']),
-            'AC_NO_CORRIENTE' => $conSaldo($totales['AC_NO_CORRIENTE']),
-            'PAS_CORRIENTE' => $conSaldo($totales['PAS_CORRIENTE']),
-            'PAS_NO_CORRIENTE' => [],
-            'PATRIMONIO' => $conSaldo($totales['PATRIMONIO']),
-            'total_activo_corriente' => $this->formatear($acCorriente),
-            'total_activo_no_corriente' => $this->formatear($acNoCorriente),
-            'total_pasivo_corriente' => $this->formatear($pasCorriente),
+        return $balance + [
+            'total_activo_corriente' => $this->formatear($totales['AC_CORRIENTE']),
+            'total_activo_no_corriente' => $this->formatear($totales['AC_NO_CORRIENTE']),
+            'total_pasivo_corriente' => $this->formatear($totales['PAS_CORRIENTE']),
+            'total_pasivo_no_corriente' => $this->formatear($totales['PAS_NO_CORRIENTE']),
             'total_activos' => $this->formatear($activos),
-            'total_pasivos' => $this->formatear($pasCorriente),
+            'total_pasivos' => $this->formatear($pasivos),
             'total_patrimonio' => $this->formatear($patrimonio),
-            'total_pasivos_patrimonio' => $this->formatear($pasivoPatrimonio),
-            'ecuacion_ok' => abs($activos - $pasivoPatrimonio) < 1,
+            'total_pasivos_patrimonio' => $this->formatear($pasivos + $patrimonio),
+            'ecuacion_ok' => $activos === $pasivos + $patrimonio,
         ];
     }
 
@@ -259,14 +232,16 @@ class LibroContableService
      * de tipo Gasto, using the same ordinary and adjustment movements as the
      * general journal.
      *
-     * @return array{ingresos: array<int, array{cuenta: string, saldo: string}>, gastos: array<int, array{cuenta: string, saldo: string}>, total_ingresos: string, total_gastos: string, utilidad_neta: string, es_utilidad: bool}
+     * @return array{ingresos: array<int, array{id_cuenta: int, codigo: string, cuenta: string, saldo: string}>, gastos: array<int, array{id_cuenta: int, codigo: string, cuenta: string, saldo: string}>, total_ingresos: string, total_gastos: string, utilidad_neta: string, es_utilidad: bool}
      */
     public function estadoResultados(?string $fechaInicio = null, ?string $fechaFin = null): array
     {
         $agrupadas = [];
         foreach ($this->diario($fechaInicio, $fechaFin) as $movimiento) {
-            $cuenta = (string) $movimiento['nombre_cuenta'];
+            $cuenta = $movimiento['id_cuenta'];
             $agrupadas[$cuenta] ??= [
+                'cuenta' => $movimiento['nombre_cuenta'],
+                'codigo' => $movimiento['codigo_cuenta'],
                 'tipo' => $movimiento['tipo_cuenta'],
                 'debe_centavos' => 0,
                 'haber_centavos' => 0,
@@ -277,16 +252,17 @@ class LibroContableService
 
         $ingresos = [];
         $gastos = [];
-        foreach ($agrupadas as $cuenta => $grupo) {
+        foreach ($agrupadas as $id => $grupo) {
+            $cuenta = ['id_cuenta' => $id, 'codigo' => $grupo['codigo'], 'cuenta' => $grupo['cuenta']];
             if ($grupo['tipo'] === 'Ingreso') {
                 $saldo = $grupo['haber_centavos'] - $grupo['debe_centavos'];
                 if ($saldo !== 0) {
-                    $ingresos[] = ['cuenta' => $cuenta, 'saldo' => $this->formatear($saldo)];
+                    $ingresos[] = $cuenta + ['saldo' => $this->formatear($saldo)];
                 }
-            } elseif ($grupo['tipo'] === 'Gasto') {
+            } elseif (in_array($grupo['tipo'], ['Gasto', 'Costo'], true)) {
                 $saldo = $grupo['debe_centavos'] - $grupo['haber_centavos'];
                 if ($saldo !== 0) {
-                    $gastos[] = ['cuenta' => $cuenta, 'saldo' => $this->formatear($saldo)];
+                    $gastos[] = $cuenta + ['saldo' => $this->formatear($saldo)];
                 }
             }
         }

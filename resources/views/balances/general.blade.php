@@ -3,8 +3,7 @@
 @section('content')
 <div class="topbar"><div><h2>Balance general</h2><p class="muted">Estado de situación financiera.</p></div></div>
 <form method="GET" action="{{ route('balances.general') }}" class="form-grid" style="margin-bottom:18px">
-    <label>Fecha de inicio<input type="date" name="fecha_inicio" value="{{ request('fecha_inicio') }}"></label>
-    <label>Fecha final<input type="date" name="fecha_fin" value="{{ request('fecha_fin') }}"></label>
+    <label>Fecha de corte<input type="date" name="fecha_fin" value="{{ request('fecha_fin') }}"></label>
     <div class="actions field-full"><button type="submit">Consultar</button><a class="button secondary" href="{{ route('balances.general') }}">Reiniciar filtro</a></div>
 </form>
 
@@ -16,7 +15,7 @@
         ], 'gran_total' => 'total_activos', 'texto_total' => 'TOTAL ACTIVOS'],
         ['titulo' => 'PASIVO', 'grupos' => [
             ['nombre' => 'Pasivo corriente', 'clave' => 'PAS_CORRIENTE', 'total' => 'total_pasivo_corriente'],
-            ['nombre' => 'Pasivo no corriente', 'clave' => 'PAS_NO_CORRIENTE', 'total' => null],
+            ['nombre' => 'Pasivo no corriente', 'clave' => 'PAS_NO_CORRIENTE', 'total' => 'total_pasivo_no_corriente'],
         ], 'gran_total' => 'total_pasivos', 'texto_total' => 'TOTAL PASIVOS'],
         ['titulo' => 'PATRIMONIO', 'grupos' => [
             ['nombre' => 'Capital y reservas', 'clave' => 'PATRIMONIO', 'total' => 'total_patrimonio'],
@@ -39,8 +38,6 @@
                     </tbody>
                 </table></div>
                 @if($grupo['total'])<p style="text-align:right"><strong>Total {{ $grupo['nombre'] }}: {{ $balance[$grupo['total']] }}</strong></p>@endif
-            @elseif($grupo['clave'] === 'PAS_NO_CORRIENTE')
-                <p class="muted">Pasivo no corriente: 0.00. Esta sección no participa en el cálculo, conforme al sistema original.</p>
             @endif
         @endforeach
         <p style="text-align:right"><strong>{{ $seccion['texto_total'] }}: {{ $balance[$seccion['gran_total']] }}</strong></p>

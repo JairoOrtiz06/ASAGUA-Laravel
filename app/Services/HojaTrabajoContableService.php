@@ -14,7 +14,7 @@ class HojaTrabajoContableService
         $filas = [];
 
         foreach ($this->libros->diario($fechaInicio, $fechaFin) as $movimiento) {
-            $clave = $movimiento['codigo_cuenta'].'\0'.$movimiento['nombre_cuenta'];
+            $clave = $movimiento['id_cuenta'];
             $filas[$clave] ??= $this->filaBase(
                 (string) $movimiento['codigo_cuenta'],
                 (string) $movimiento['nombre_cuenta'],
@@ -36,21 +36,21 @@ class HojaTrabajoContableService
 
         $estado = $this->libros->estadoResultados($fechaInicio, $fechaFin);
         foreach ($estado['ingresos'] as $item) {
-            $this->agregarResultado($filas, $item['cuenta'], 'Ingreso', $item['saldo'], false);
+            $this->agregarResultado($filas, $item, 'Ingreso', $item['saldo'], false);
         }
         foreach ($estado['gastos'] as $item) {
-            $this->agregarResultado($filas, $item['cuenta'], 'Gasto', $item['saldo'], true);
+            $this->agregarResultado($filas, $item, 'Gasto', $item['saldo'], true);
         }
 
         $balance = $this->libros->balanceGeneral($fechaInicio, $fechaFin);
         foreach (['AC_CORRIENTE', 'AC_NO_CORRIENTE'] as $seccion) {
             foreach ($balance[$seccion] as $item) {
-                $this->agregarBalanceGeneral($filas, $item['cuenta'], 'Activo', $item['saldo'], true);
+                $this->agregarBalanceGeneral($filas, $item, 'Activo', $item['saldo'], true);
             }
         }
-        foreach (['PAS_CORRIENTE', 'PATRIMONIO'] as $seccion) {
+        foreach (['PAS_CORRIENTE', 'PAS_NO_CORRIENTE', 'PATRIMONIO'] as $seccion) {
             foreach ($balance[$seccion] as $item) {
-                $this->agregarBalanceGeneral($filas, $item['cuenta'], $seccion === 'PATRIMONIO' ? 'Patrimonio' : 'Pasivo', $item['saldo'], false);
+                $this->agregarBalanceGeneral($filas, $item, $seccion === 'PATRIMONIO' ? 'Patrimonio' : 'Pasivo', $item['saldo'], false);
             }
         }
 
@@ -98,13 +98,10 @@ class HojaTrabajoContableService
     }
 
     /** @param array<string, array<string, mixed>> $filas */
-    private function agregarResultado(array &$filas, string $cuenta, string $tipo, string $saldo, bool $deudora): void
+    private function agregarResultado(array &$filas, array $cuenta, string $tipo, string $saldo, bool $deudora): void
     {
-        $clave = $this->buscarClave($filas, $cuenta);
-        if ($clave === null) {
-            $clave = '0\0'.$cuenta;
-            $filas[$clave] = $this->filaBase('', $cuenta, $tipo);
-        }
+        $clave = $cuenta['id_cuenta'] ?? 'resultado';
+        $filas[$clave] ??= $this->filaBase($cuenta['codigo'], $cuenta['cuenta'], $tipo);
 
         $importe = $this->centavos($saldo);
         if (($deudora && $importe >= 0) || (! $deudora && $importe < 0)) {
@@ -115,13 +112,10 @@ class HojaTrabajoContableService
     }
 
     /** @param array<string, array<string, mixed>> $filas */
-    private function agregarBalanceGeneral(array &$filas, string $cuenta, string $tipo, string $saldo, bool $deudora): void
+    private function agregarBalanceGeneral(array &$filas, array $cuenta, string $tipo, string $saldo, bool $deudora): void
     {
-        $clave = $this->buscarClave($filas, $cuenta);
-        if ($clave === null) {
-            $clave = '0\0'.$cuenta;
-            $filas[$clave] = $this->filaBase('', $cuenta, $tipo);
-        }
+        $clave = $cuenta['id_cuenta'] ?? 'resultado';
+        $filas[$clave] ??= $this->filaBase($cuenta['codigo'], $cuenta['cuenta'], $tipo);
 
         $importe = $this->centavos($saldo);
         if (($deudora && $importe >= 0) || (! $deudora && $importe < 0)) {
@@ -132,17 +126,6 @@ class HojaTrabajoContableService
     }
 
     /** @param array<string, array<string, mixed>> $filas */
-    private function buscarClave(array $filas, string $cuenta): ?string
-    {
-        foreach ($filas as $clave => $fila) {
-            if ($fila['cuenta'] === $cuenta) {
-                return $clave;
-            }
-        }
-
-        return null;
-    }
-
     /** @param array<int, array<string, mixed>> $filas */
     private function formatearFilas(array &$filas): void
     {

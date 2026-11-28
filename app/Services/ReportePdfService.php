@@ -66,7 +66,7 @@ class ReportePdfService
 
         return Pdf::loadView('pdf.balance-general', [
             'balance' => $balance,
-            'subtitulo' => $this->subtitulo('Situación financiera de la entidad', $fechaInicio, $fechaFin),
+            'subtitulo' => $fechaFin === null ? 'Situación financiera de la entidad' : 'Situación financiera al '.$fechaFin,
         ])
             ->setPaper('letter')
             ->output();

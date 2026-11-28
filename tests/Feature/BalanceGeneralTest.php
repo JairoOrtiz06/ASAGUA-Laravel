@@ -39,23 +39,26 @@ class BalanceGeneralTest extends TestCase
         $this->assertTrue($balance['ecuacion_ok']);
     }
 
-    public function test_non_current_liabilities_are_excluded_from_original_total(): void
+    public function test_non_current_liabilities_and_inactive_accounts_are_included(): void
     {
         [$usuario, $ids] = $this->catalogoJerarquico();
         $partida = $this->partida($usuario, 1, '2026-03-01', 'Pasivo no corriente');
         $partida->detalles()->createMany([
             ['id_cuenta' => $ids['caja'], 'id_usuario' => $usuario->id_usuario, 'debe' => '100.00', 'haber' => '0.00'],
-            ['id_cuenta' => $ids['pasivoNoCorriente'], 'id_usuario' => $usuario->id_usuario, 'debe' => '0.00', 'haber' => '50.00'],
+            ['id_cuenta' => $ids['pasivoNoCorriente'], 'id_usuario' => $usuario->id_usuario, 'debe' => '0.00', 'haber' => '100.00'],
         ]);
+
+        DB::table('tblcuentascontables')->where('id_cuenta', $ids['pasivoNoCorriente'])->update(['estado' => false]);
 
         $balance = app(LibroContableService::class)->balanceGeneral();
 
-        $this->assertSame([], $balance['PAS_NO_CORRIENTE']);
-        $this->assertSame('0.00', $balance['total_pasivos']);
+        $this->assertSame('100.00', $this->saldo($balance['PAS_NO_CORRIENTE'], 'Préstamo largo plazo'));
+        $this->assertSame('100.00', $balance['total_pasivos']);
+        $this->assertTrue($balance['ecuacion_ok']);
         $this->assertSame('100.00', $balance['total_activos']);
     }
 
-    public function test_balance_applies_the_available_date_filters(): void
+    public function test_balance_retains_opening_balances_at_the_cutoff(): void
     {
         [$usuario, $ids] = $this->catalogoJerarquico();
         $anterior = $this->partida($usuario, 1, '2026-01-01', 'Anterior');
@@ -71,8 +74,27 @@ class BalanceGeneralTest extends TestCase
 
         $balance = app(LibroContableService::class)->balanceGeneral('2026-02-01', '2026-02-28');
 
-        $this->assertSame('25.00', $this->saldo($balance['AC_CORRIENTE'], 'Caja corriente'));
-        $this->assertSame('25.00', $this->saldo($balance['PATRIMONIO'], 'RESULTADOS DEL EJERCICIO'));
+        $this->assertSame('65.00', $this->saldo($balance['AC_CORRIENTE'], 'Caja corriente'));
+        $this->assertSame('65.00', $this->saldo($balance['PATRIMONIO'], 'RESULTADOS DEL EJERCICIO'));
+    }
+
+    public function test_reports_keep_accounts_with_the_same_name_separate(): void
+    {
+        [$usuario, $ids] = $this->catalogoJerarquico();
+        DB::table('tblcuentascontables')->where('id_cuenta', $ids['gasto'])->update(['nombre_cuenta' => 'Ingresos']);
+        $partida = $this->partida($usuario, 1, '2026-03-01', 'Cuentas homónimas');
+        $partida->detalles()->createMany([
+            ['id_cuenta' => $ids['caja'], 'id_usuario' => $usuario->id_usuario, 'debe' => '60.00', 'haber' => '0.00'],
+            ['id_cuenta' => $ids['gasto'], 'id_usuario' => $usuario->id_usuario, 'debe' => '40.00', 'haber' => '0.00'],
+            ['id_cuenta' => $ids['ingreso'], 'id_usuario' => $usuario->id_usuario, 'debe' => '0.00', 'haber' => '100.00'],
+        ]);
+
+        $libros = app(LibroContableService::class);
+        $estado = $libros->estadoResultados();
+
+        $this->assertSame('100.00', $estado['total_ingresos']);
+        $this->assertSame('40.00', $estado['total_gastos']);
+        $this->assertSame('60.00', $libros->balanceGeneral()['total_patrimonio']);
     }
 
     public function test_balance_route_includes_ordinary_adjustment_and_non_current_section(): void
@@ -115,15 +137,15 @@ class BalanceGeneralTest extends TestCase
     {
         $usuario = User::factory()->create(['rol' => 'Contador']);
         DB::table('tblcuentascontables')->insert([
-            ['id_cuenta' => 7, 'codigo_cuenta' => '10', 'nombre_cuenta' => 'Activo corriente', 'tipo_cuenta' => 'Activo', 'nivel' => 2, 'id_cuenta_padre' => null, 'estado' => true],
-            ['id_cuenta' => 8, 'codigo_cuenta' => '12', 'nombre_cuenta' => 'Activo no corriente', 'tipo_cuenta' => 'Activo', 'nivel' => 2, 'id_cuenta_padre' => null, 'estado' => true],
-            ['id_cuenta' => 9, 'codigo_cuenta' => '20', 'nombre_cuenta' => 'Pasivo corriente', 'tipo_cuenta' => 'Pasivo', 'nivel' => 2, 'id_cuenta_padre' => null, 'estado' => true],
-            ['id_cuenta' => 10, 'codigo_cuenta' => '30', 'nombre_cuenta' => 'Patrimonio', 'tipo_cuenta' => 'Patrimonio', 'nivel' => 2, 'id_cuenta_padre' => null, 'estado' => true],
-            ['id_cuenta' => 11, 'codigo_cuenta' => '1101', 'nombre_cuenta' => 'Caja corriente', 'tipo_cuenta' => 'Activo', 'nivel' => 3, 'id_cuenta_padre' => 7, 'estado' => true],
-            ['id_cuenta' => 12, 'codigo_cuenta' => '1201', 'nombre_cuenta' => 'Terreno', 'tipo_cuenta' => 'Activo', 'nivel' => 3, 'id_cuenta_padre' => 8, 'estado' => true],
-            ['id_cuenta' => 13, 'codigo_cuenta' => '2101', 'nombre_cuenta' => 'Proveedores corrientes', 'tipo_cuenta' => 'Pasivo', 'nivel' => 3, 'id_cuenta_padre' => 9, 'estado' => true],
-            ['id_cuenta' => 14, 'codigo_cuenta' => '3101', 'nombre_cuenta' => 'Capital', 'tipo_cuenta' => 'Patrimonio', 'nivel' => 3, 'id_cuenta_padre' => 10, 'estado' => true],
-            ['id_cuenta' => 15, 'codigo_cuenta' => '3201', 'nombre_cuenta' => 'RESULTADOS DEL EJERCICIO', 'tipo_cuenta' => 'Patrimonio', 'nivel' => 3, 'id_cuenta_padre' => 10, 'estado' => true],
+            ['id_cuenta' => 107, 'codigo_cuenta' => '10', 'nombre_cuenta' => 'Activo corriente', 'tipo_cuenta' => 'Activo', 'nivel' => 2, 'id_cuenta_padre' => null, 'estado' => true],
+            ['id_cuenta' => 108, 'codigo_cuenta' => '12', 'nombre_cuenta' => 'Activo no corriente', 'tipo_cuenta' => 'Activo', 'nivel' => 2, 'id_cuenta_padre' => null, 'estado' => true],
+            ['id_cuenta' => 109, 'codigo_cuenta' => '20', 'nombre_cuenta' => 'Pasivo corriente', 'tipo_cuenta' => 'Pasivo', 'nivel' => 2, 'id_cuenta_padre' => null, 'estado' => true],
+            ['id_cuenta' => 110, 'codigo_cuenta' => '30', 'nombre_cuenta' => 'Patrimonio', 'tipo_cuenta' => 'Patrimonio', 'nivel' => 2, 'id_cuenta_padre' => null, 'estado' => true],
+            ['id_cuenta' => 11, 'codigo_cuenta' => '1101', 'nombre_cuenta' => 'Caja corriente', 'tipo_cuenta' => 'Activo', 'nivel' => 3, 'id_cuenta_padre' => 107, 'estado' => true],
+            ['id_cuenta' => 12, 'codigo_cuenta' => '1201', 'nombre_cuenta' => 'Terreno', 'tipo_cuenta' => 'Activo', 'nivel' => 3, 'id_cuenta_padre' => 108, 'estado' => true],
+            ['id_cuenta' => 13, 'codigo_cuenta' => '2101', 'nombre_cuenta' => 'Proveedores corrientes', 'tipo_cuenta' => 'Pasivo', 'nivel' => 3, 'id_cuenta_padre' => 109, 'estado' => true],
+            ['id_cuenta' => 14, 'codigo_cuenta' => '3101', 'nombre_cuenta' => 'Capital', 'tipo_cuenta' => 'Patrimonio', 'nivel' => 3, 'id_cuenta_padre' => 110, 'estado' => true],
+            ['id_cuenta' => 15, 'codigo_cuenta' => '3201', 'nombre_cuenta' => 'RESULTADOS DEL EJERCICIO', 'tipo_cuenta' => 'Patrimonio', 'nivel' => 3, 'id_cuenta_padre' => 110, 'estado' => true],
             ['id_cuenta' => 16, 'codigo_cuenta' => '4101', 'nombre_cuenta' => 'Ingresos', 'tipo_cuenta' => 'Ingreso', 'nivel' => 3, 'id_cuenta_padre' => null, 'estado' => true],
             ['id_cuenta' => 17, 'codigo_cuenta' => '5101', 'nombre_cuenta' => 'Gastos', 'tipo_cuenta' => 'Gasto', 'nivel' => 3, 'id_cuenta_padre' => null, 'estado' => true],
             ['id_cuenta' => 18, 'codigo_cuenta' => '22', 'nombre_cuenta' => 'Pasivo no corriente', 'tipo_cuenta' => 'Pasivo', 'nivel' => 2, 'id_cuenta_padre' => null, 'estado' => true],
